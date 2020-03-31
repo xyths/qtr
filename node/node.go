@@ -76,13 +76,16 @@ func (n *Node) getHistoryOnce(ctx context.Context) error {
 	duplicate := 0
 	fail := 0
 	label := n.config.User.Label
+
+	coll := n.db.Collection(n.config.History.Prefix + "_" + n.config.User.Label)
 	for _, t := range history.Trades {
 		trade := Trade{
+			TradeId:     t.TradeId,
 			OrderNumber: t.OrderNumber,
 			Label:       label,
 			Pair:        t.Pair,
 			Type:        t.Type,
-			Rate:        t.Rate,
+			Rate:        strToFloat64(t.Rate),
 			Amount:      strToFloat64(t.Amount),
 			Total:       t.Total,
 			Date:        time.Unix(t.TimeUnix, 0),
@@ -93,8 +96,6 @@ func (n *Node) getHistoryOnce(ctx context.Context) error {
 			GtFee:       strToFloat64(t.GtFee),
 			PointFee:    strToFloat64(t.PointFee),
 		}
-
-		coll := n.db.Collection(n.config.History.Prefix + n.config.User.Label)
 
 		if _, err := coll.InsertOne(ctx, trade); err != nil {
 			if !isDuplicateError(err) {
