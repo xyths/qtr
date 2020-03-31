@@ -16,7 +16,13 @@ type User struct {
 	APIKeyPair gateio.APIKeyPair `json:"APIKeyPair"`
 }
 
+type History struct {
+	Prefix   string
+	Interval string `json:"interval"`
+}
+
 type Config struct {
-	User  User
-	Mongo MongoConf
+	User    User
+	Mongo   MongoConf
+	History History
 }

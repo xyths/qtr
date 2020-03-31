@@ -32,14 +32,12 @@ var (
 
 func grid(ctx *cli.Context) error {
 	n := getNode(ctx)
-	n.Grid(ctx.Context)
-	return nil
+	return n.Grid(ctx.Context)
 }
 
 func history(ctx *cli.Context) error {
 	n := getNode(ctx)
-	n.History(ctx.Context)
-	return nil
+	return n.History(ctx.Context)
 }
 
 func parseConfig(filename string) (c node.Config) {

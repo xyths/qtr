@@ -1,6 +1,7 @@
 package gateio
 
-type Trade struct {
+// from api result
+type RawTrade struct {
 	TradeId     uint64  `json:"tradeID"`
 	OrderNumber uint64  `json:"orderNumber"`
 	Pair        string  `json:"pair"`
@@ -9,7 +10,7 @@ type Trade struct {
 	Amount      string  `json:"amount"`
 	Total       float64 `json:"total"`
 	Date        string  `json:"date"`
-	TimeUnix    uint64  `json:"time_unix"`
+	TimeUnix    int64  `json:"time_unix"`
 	Role        string  `json:"role"`
 	Fee         string  `json:"fee"`
 	FeeCoin     string  `json:"fee_coin"`
@@ -18,8 +19,8 @@ type Trade struct {
 }
 
 type MyTradeHistoryResult struct {
-	Result  string  `json:"result"`
-	Trades  []Trade `json:"trades"`
-	Message string  `json:"message"`
-	Code    int     `json:"code"`
+	Result  string     `json:"result"`
+	Trades  []RawTrade `json:"trades"`
+	Message string     `json:"message"`
+	Code    int        `json:"code"`
 }

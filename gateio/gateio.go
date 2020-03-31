@@ -88,7 +88,7 @@ func (g *GateIO) GetPairs() (string, error) {
 //	return ret
 //}
 //
-// Trade History
+// RawTrade History
 func (g *GateIO) TradeHistory(params string) (string, error) {
 	var method string = "GET"
 	var url string = DataSource + "/TradeHistory/" + params
