@@ -1,0 +1,2 @@
+# qtr
+Quantitative trading robot
