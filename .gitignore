@@ -5,6 +5,7 @@
 *.so
 *.dylib
 qtr
+qtr.*
 
 # Test binary, built with `go test -c`
 *.test

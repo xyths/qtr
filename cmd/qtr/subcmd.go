@@ -11,21 +11,23 @@ import (
 
 var (
 	gridCommand = &cli.Command{
-		Action:  grid,
-		Name:    "grid",
-		Aliases: []string{"g"},
-		Usage:   "Trading with grid strategy",
-		Flags: []cli.Flag{
-		},
+		Action: grid,
+		Name:   "grid",
+		Usage:  "Trading with grid strategy",
 	}
 	historyCommand = &cli.Command{
-		Action:  history,
-		Name:    "history",
-		Aliases: []string{"hist"},
-		Usage:   "Get trading history",
+		Action: history,
+		Name:   "history",
+		Usage:  "Get trading history",
+	}
+	profitCommand = &cli.Command{
+		Action: profit,
+		Name:   "profit",
+		Usage:  "Get trading history",
 		Flags: []cli.Flag{
-			//utils.StartTimeFlag,
-			//utils.EndTimeFlag,
+			utils.LabelFlag,
+			utils.StartTimeFlag,
+			utils.EndTimeFlag,
 		},
 	}
 )
@@ -38,6 +40,14 @@ func grid(ctx *cli.Context) error {
 func history(ctx *cli.Context) error {
 	n := getNode(ctx)
 	return n.History(ctx.Context)
+}
+
+func profit(ctx *cli.Context) error {
+	label := ctx.String(utils.LabelFlag.Name)
+	start := ctx.String(utils.StartTimeFlag.Name)
+	end := ctx.String(utils.EndTimeFlag.Name)
+	n := getNode(ctx)
+	return n.Profit(ctx.Context, label, start, end)
 }
 
 func parseConfig(filename string) (c node.Config) {

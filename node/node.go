@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"github.com/xyths/qtr/gateio"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
@@ -93,7 +94,7 @@ func (n *Node) getUserHistory(ctx context.Context, u User) error {
 	fail := 0
 	label := u.Label
 
-	coll := n.db.Collection(n.config.History.Prefix + "_" + u.Exchange)
+	coll := n.db.Collection(n.historyCollName(u))
 	for _, t := range history.Trades {
 		trade := Trade{
 			TradeId:     t.TradeId,
@@ -104,6 +105,7 @@ func (n *Node) getUserHistory(ctx context.Context, u User) error {
 			Rate:        strToFloat64(t.Rate),
 			Amount:      strToFloat64(t.Amount),
 			Total:       t.Total,
+			DateString:  t.Date,
 			Date:        time.Unix(t.TimeUnix, 0),
 			TimeUnix:    t.TimeUnix,
 			Role:        t.Role,
@@ -129,6 +131,80 @@ func (n *Node) getUserHistory(ctx context.Context, u User) error {
 	return nil
 }
 
+func (n *Node) Profit(ctx context.Context, label, start, end string) error {
+	secondsEastOfUTC := int((8 * time.Hour).Seconds())
+	beijing := time.FixedZone("Beijing Time", secondsEastOfUTC)
+	layout := "2006-01-02 15:04:05"
+	startTime, err := time.ParseInLocation(layout, start, beijing)
+	if err != nil {
+		log.Printf("error start format: %s", start)
+		return err
+	}
+	endTime, err := time.ParseInLocation(layout, end, beijing)
+	if err != nil {
+		log.Printf("error end format: %s", end)
+		return err
+	}
+	if !startTime.Before(endTime) {
+		log.Printf("start time(%s) must before end time(%s)", startTime.String(), endTime.String())
+	}
+	for _, u := range n.config.Users {
+		select {
+		case <-ctx.Done():
+			log.Println(ctx.Err())
+			return nil
+		default:
+			if label == "" || u.Label == label {
+				if err := n.getUserProfit(ctx, u, startTime, endTime); err != nil {
+					log.Printf("error when getHistory: %s", err)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (n *Node) getUserProfit(ctx context.Context, u User, start, end time.Time) error {
+	coll := n.db.Collection(n.historyCollName(u))
+	cursor, err := coll.Find(ctx, bson.D{
+		{"pair", "sero_usdt"},
+		{"label", u.Label},
+		{"date", bson.D{
+			{"$gte", start},
+			{"$lte", end},
+		}},
+	})
+	if err != nil {
+		return err
+	}
+	var trades []Trade
+	if err1 := cursor.All(ctx, &trades); err1 != nil {
+		return err1
+	}
+	sero := 0.0
+	usdt := 0.0
+	gtFee := 0.0
+	for _, t := range trades {
+		log.Printf("tradeId: %d, orderNumber: %d, date: %s, type: %s, rate: %f, amount: %f, total: %f, gtFee: %f",
+			t.TradeId, t.OrderNumber, t.DateString, t.Type, t.Rate, t.Amount, t.Total, t.GtFee)
+		switch t.Type {
+		case "buy":
+			sero += t.Amount
+			usdt -= t.Total
+			gtFee -= t.GtFee
+		case "sell":
+			sero -= t.Amount
+			usdt += t.Total
+			gtFee -= t.GtFee
+		default:
+			log.Println("unknown trade type: %s", t.Type)
+		}
+	}
+	log.Printf("summary: SERO %f, USDT %f, GT: %f", sero, usdt, gtFee)
+	return nil
+}
+
 func strToInt64(s string, i64 *int64) {
 	if i, ok := big.NewInt(0).SetString(s, 0); ok {
 		*i64 = i.Int64()
@@ -151,4 +227,8 @@ func isDuplicateError(err error) bool {
 		return true
 	}
 	return false
+}
+
+func (n *Node) historyCollName(u User) string {
+	return n.config.History.Prefix + "_" + u.Exchange
 }
