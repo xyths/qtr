@@ -101,15 +101,20 @@ func (g *GateIO) TradeHistory(params string) (string, error) {
 	}
 }
 
-//// Get account fund balances
-//func (g *GateIO) balances() string {
-//	var method string = "POST"
-//	var url string = DataSource + "/private/balances"
-//	var param string = ""
-//	var ret string = g.httpDo(method, url, param)
-//	return ret
-//}
-//
+// Get account fund balances
+func (g *GateIO) Balances() (*BalancesResult, error) {
+	method := "POST"
+	url := DataSource + "/private/balances"
+	param := ""
+	data, err := g.httpDo(method, url, param)
+	if err != nil {
+		return nil, err
+	}
+	var result BalancesResult
+	err = json.Unmarshal(data, &result)
+	return &result, err
+}
+
 //// get deposit address
 //func (g *GateIO) depositAddress(currency string) string {
 //	var method string = "POST"

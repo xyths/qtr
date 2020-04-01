@@ -54,3 +54,16 @@ func TestGateIO_MyTradeHistory(t *testing.T) {
 		t.Logf("MyTradeHistory(\"SERO_USDT\", \"\"): %s", buf.String())
 	}
 }
+
+// apiKey=xxx secretKey=yyy go test -v -run TestGateIO_Balances ./gateio
+func TestGateIO_Balances(t *testing.T) {
+	apiKey := os.Getenv("apiKey")
+	secretKey := os.Getenv("secretKey")
+	gateio := NewGateIO(apiKey, secretKey)
+
+	balances, err := gateio.Balances()
+	if err != nil {
+		t.Logf("error when Balances: %s", err)
+	}
+	t.Logf("balances is %#v", balances)
+}

@@ -15,7 +15,7 @@ var (
 		Name:    "label",
 		Aliases: []string{"l"},
 		Value:   "",
-		Usage:   "only process the user with `label`",
+		Usage:   "only process the user with `label` (default: \"\", for all users)",
 	}
 	StartTimeFlag = &cli.StringFlag{
 		Name:    "start",

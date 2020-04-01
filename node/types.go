@@ -28,3 +28,11 @@ type Trade struct {
 	GtFee       float64   `bson:"gtFee"`
 	PointFee    float64   `bson:"pointFee"`
 }
+
+type Balance struct {
+	Label string
+	SERO  float64 `bson:"SERO"`
+	USDT  float64 `bson:"USDT"`
+	GT    float64 `bson:"GT"`
+	Time  time.Time
+}

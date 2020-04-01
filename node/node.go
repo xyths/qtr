@@ -157,7 +157,7 @@ func (n *Node) Profit(ctx context.Context, label, start, end string) error {
 		default:
 			if label == "" || u.Label == label {
 				if err := n.getUserProfit(ctx, u, startTime, endTime); err != nil {
-					log.Printf("error when getHistory: %s", err)
+					log.Printf("error when getUserProfit: %s", err)
 				}
 			}
 		}
@@ -206,6 +206,49 @@ func (n *Node) getUserProfit(ctx context.Context, u User, start, end time.Time) 
 	return nil
 }
 
+func (n *Node) Snapshot(ctx context.Context, label string) error {
+	for _, u := range n.config.Users {
+		select {
+		case <-ctx.Done():
+			log.Println(ctx.Err())
+			return nil
+		default:
+			if label == "" || u.Label == label {
+				if err := n.getUserAsset(ctx, u); err != nil {
+					log.Printf("error when getUserAsset: %s", err)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (n *Node) getUserAsset(ctx context.Context, u User) error {
+	client := gateio.NewGateIO(u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey)
+	balances, err := client.Balances()
+	if err != nil {
+		return err
+	}
+
+	b := Balance{
+		Label: u.Label,
+		SERO:  strToFloat64(balances.Available["SERO"]) + strToFloat64(balances.Locked["SERO"]),
+		USDT:  strToFloat64(balances.Available["USDT"]) + strToFloat64(balances.Locked["USDT"]),
+		GT:    strToFloat64(balances.Available["GT"]) + strToFloat64(balances.Locked["GT"]),
+		Time:  time.Now(),
+	}
+
+	coll := n.db.Collection(n.balanceCollName(u))
+
+	if _, err := coll.InsertOne(ctx, b); err != nil {
+		return err
+	}
+
+	log.Printf("%s(%s) balance: SERO %f, USDT %f, GT: %f", u.Exchange, u.Label, b.SERO, b.USDT, b.GT)
+	return nil
+}
+
 func strToInt64(s string, i64 *int64) {
 	if i, ok := big.NewInt(0).SetString(s, 0); ok {
 		*i64 = i.Int64()
@@ -232,4 +275,7 @@ func isDuplicateError(err error) bool {
 
 func (n *Node) historyCollName(u User) string {
 	return n.config.History.Prefix + "_" + u.Exchange
+}
+func (n *Node) balanceCollName(u User) string {
+	return "balance_" + u.Exchange
 }

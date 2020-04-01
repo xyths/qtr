@@ -30,6 +30,14 @@ var (
 			utils.EndTimeFlag,
 		},
 	}
+	snapshotCommand = &cli.Command{
+		Action: snapshot,
+		Name:   "snapshot",
+		Usage:  "Snapshot the asset",
+		Flags: []cli.Flag{
+			utils.LabelFlag,
+		},
+	}
 )
 
 func grid(ctx *cli.Context) error {
@@ -48,6 +56,12 @@ func profit(ctx *cli.Context) error {
 	end := ctx.String(utils.EndTimeFlag.Name)
 	n := getNode(ctx)
 	return n.Profit(ctx.Context, label, start, end)
+}
+
+func snapshot(ctx *cli.Context) error {
+	label := ctx.String(utils.LabelFlag.Name)
+	n := getNode(ctx)
+	return n.Snapshot(ctx.Context, label)
 }
 
 func parseConfig(filename string) (c node.Config) {
