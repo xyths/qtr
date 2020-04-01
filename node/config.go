@@ -22,7 +22,7 @@ type History struct {
 }
 
 type Config struct {
-	User    User
+	Users   []User
 	Mongo   MongoConf
 	History History
 }

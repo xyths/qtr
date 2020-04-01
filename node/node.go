@@ -63,9 +63,25 @@ func (n *Node) History(ctx context.Context) error {
 }
 
 func (n *Node) getHistoryOnce(ctx context.Context) error {
-	log.Printf("get history for %s-%s start now", n.config.User.Exchange, n.config.User.Label)
+	for _, u := range n.config.Users {
+		select {
+		case <-ctx.Done():
+			log.Println(ctx.Err())
+			return nil
+		default:
+			if err := n.getUserHistory(ctx, u); err != nil {
+				log.Printf("error when getHistory: %s", err)
+			}
+		}
+	}
 
-	client := gateio.NewGateIO(n.config.User.APIKeyPair.ApiKey, n.config.User.APIKeyPair.SecretKey)
+	return nil
+}
+
+func (n *Node) getUserHistory(ctx context.Context, u User) error {
+	log.Printf("get history for %s-%s start now", u.Exchange, u.Label)
+
+	client := gateio.NewGateIO(u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey)
 	history, err := client.MyTradeHistory("SERO_USDT", "")
 	if err != nil {
 		return err
@@ -75,9 +91,9 @@ func (n *Node) getHistoryOnce(ctx context.Context) error {
 	success := 0
 	duplicate := 0
 	fail := 0
-	label := n.config.User.Label
+	label := u.Label
 
-	coll := n.db.Collection(n.config.History.Prefix + "_" + n.config.User.Label)
+	coll := n.db.Collection(n.config.History.Prefix + "_" + u.Exchange)
 	for _, t := range history.Trades {
 		trade := Trade{
 			TradeId:     t.TradeId,
@@ -108,10 +124,8 @@ func (n *Node) getHistoryOnce(ctx context.Context) error {
 			success++
 		}
 	}
-
 	log.Printf("get history for %s-%s finish now, all: %d, success: %d, duplicate: %d, fail: %d",
-		n.config.User.Exchange, n.config.User.Label, all, success, duplicate, fail)
-
+		u.Exchange, u.Label, all, success, duplicate, fail)
 	return nil
 }
 
