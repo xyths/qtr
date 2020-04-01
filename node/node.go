@@ -8,6 +8,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
 	"math/big"
+	"strings"
 	"time"
 )
 
@@ -83,7 +84,7 @@ func (n *Node) getUserHistory(ctx context.Context, u User) error {
 	log.Printf("get history for %s-%s start now", u.Exchange, u.Label)
 
 	client := gateio.NewGateIO(u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey)
-	history, err := client.MyTradeHistory("SERO_USDT", "")
+	history, err := client.MyTradeHistory(strings.ToUpper(u.Pair), "")
 	if err != nil {
 		return err
 	}
@@ -100,7 +101,7 @@ func (n *Node) getUserHistory(ctx context.Context, u User) error {
 			TradeId:     t.TradeId,
 			OrderNumber: t.OrderNumber,
 			Label:       label,
-			Pair:        t.Pair,
+			Pair:        strings.ToUpper(t.Pair),
 			Type:        t.Type,
 			Rate:        strToFloat64(t.Rate),
 			Amount:      strToFloat64(t.Amount),
@@ -168,7 +169,7 @@ func (n *Node) Profit(ctx context.Context, label, start, end string) error {
 func (n *Node) getUserProfit(ctx context.Context, u User, start, end time.Time) error {
 	coll := n.db.Collection(n.historyCollName(u))
 	cursor, err := coll.Find(ctx, bson.D{
-		{"pair", "sero_usdt"},
+		{"pair", strings.ToUpper(u.Pair)},
 		{"label", u.Label},
 		{"date", bson.D{
 			{"$gte", start},
@@ -201,7 +202,7 @@ func (n *Node) getUserProfit(ctx context.Context, u User, start, end time.Time) 
 			log.Println("unknown trade type: %s", t.Type)
 		}
 	}
-	log.Printf("summary: SERO %f, USDT %f, GT: %f", sero, usdt, gtFee)
+	log.Printf("%s(%s) %s summary: SERO %f, USDT %f, GT: %f", u.Exchange, u.Label, u.Pair, sero, usdt, gtFee)
 	return nil
 }
 

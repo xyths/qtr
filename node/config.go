@@ -13,6 +13,7 @@ type MongoConf struct {
 type User struct {
 	Exchange   string
 	Label      string
+	Pair       string // 交易对
 	APIKeyPair gateio.APIKeyPair `json:"APIKeyPair"`
 }
 
