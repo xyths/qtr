@@ -74,7 +74,7 @@ func (n *Node) doGridOnce(ctx context.Context) error {
 			return nil
 		default:
 			if err := n.grids[i].DoWork(ctx); err != nil {
-				log.Printf("error when getHistory: %s", err)
+				log.Printf("error when DoWork: %s", err)
 			}
 		}
 	}
