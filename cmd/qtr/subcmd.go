@@ -16,14 +16,31 @@ var (
 		Usage:  "Trading with grid strategy",
 	}
 	historyCommand = &cli.Command{
-		Action: history,
-		Name:   "history",
-		Usage:  "Get trading history",
+		Name:  "history",
+		Usage: "Manage trading history",
+		Subcommands: []*cli.Command{
+			{
+				Action: pull,
+				Name:   "pull",
+				Usage:  "Pull trading history from exchange",
+			},
+			{
+				Action: export,
+				Name:   "export",
+				Usage:  "Export trading history to csv",
+				Flags: []cli.Flag{
+					utils.LabelFlag,
+					utils.StartTimeFlag,
+					utils.EndTimeFlag,
+					utils.CsvFlag,
+				},
+			},
+		},
 	}
 	profitCommand = &cli.Command{
 		Action: profit,
 		Name:   "profit",
-		Usage:  "Get trading history",
+		Usage:  "Summary profit from trading history",
 		Flags: []cli.Flag{
 			utils.LabelFlag,
 			utils.StartTimeFlag,
@@ -45,9 +62,9 @@ func grid(ctx *cli.Context) error {
 	return n.Grid(ctx.Context)
 }
 
-func history(ctx *cli.Context) error {
+func pull(ctx *cli.Context) error {
 	n := getNode(ctx)
-	return n.History(ctx.Context)
+	return n.PullHistory(ctx.Context)
 }
 
 func profit(ctx *cli.Context) error {
@@ -62,6 +79,15 @@ func snapshot(ctx *cli.Context) error {
 	label := ctx.String(utils.LabelFlag.Name)
 	n := getNode(ctx)
 	return n.Snapshot(ctx.Context, label)
+}
+
+func export(ctx *cli.Context) error {
+	label := ctx.String(utils.LabelFlag.Name)
+	start := ctx.String(utils.StartTimeFlag.Name)
+	end := ctx.String(utils.EndTimeFlag.Name)
+	csv := ctx.String(utils.CsvFlag.Name)
+	n := getNode(ctx)
+	return n.Export(ctx.Context, label, start, end, csv)
 }
 
 func parseConfig(filename string) (c node.Config) {

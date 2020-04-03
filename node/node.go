@@ -2,12 +2,18 @@ package node
 
 import (
 	"context"
+	"encoding/csv"
+	"fmt"
+	"github.com/pkg/errors"
+	"github.com/xyths/hs/convert"
 	"github.com/xyths/qtr/gateio"
+	"github.com/xyths/qtr/grid"
+	"github.com/xyths/qtr/types"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
-	"math/big"
+	"os"
 	"strings"
 	"time"
 )
@@ -15,6 +21,7 @@ import (
 type Node struct {
 	config Config
 	db     *mongo.Database
+	grids  []grid.Grid
 }
 
 func (n *Node) Init(ctx context.Context, cfg Config) {
@@ -37,11 +44,44 @@ func (n *Node) initMongo(ctx context.Context, config Config) {
 }
 
 func (n *Node) Grid(ctx context.Context) error {
+	d, err := time.ParseDuration(n.config.Grid.Interval)
+	if err != nil {
+		log.Fatalf("parse duration error: %s", err)
+	}
+	n.initGrid(ctx)
+	if err := n.doGridOnce(ctx); err != nil {
+		log.Printf("error when doGrid: %s", err)
+	}
 
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println(ctx.Err())
+			return nil
+		case <-time.After(d):
+			if err := n.doGridOnce(ctx); err != nil {
+				log.Printf("error when doGrid: %s", err)
+			}
+		}
+	}
+}
+
+func (n *Node) doGridOnce(ctx context.Context) error {
+	for i, _ := range n.grids {
+		select {
+		case <-ctx.Done():
+			log.Println(ctx.Err())
+			return nil
+		default:
+			if err := n.grids[i].DoWork(ctx); err != nil {
+				log.Printf("error when getHistory: %s", err)
+			}
+		}
+	}
 	return nil
 }
 
-func (n *Node) History(ctx context.Context) error {
+func (n *Node) PullHistory(ctx context.Context) error {
 	d, err := time.ParseDuration(n.config.History.Interval)
 	if err != nil {
 		log.Fatalf("parse duration error: %s", err)
@@ -84,7 +124,7 @@ func (n *Node) getUserHistory(ctx context.Context, u User) error {
 	log.Printf("get history for %s-%s start now", u.Exchange, u.Label)
 
 	client := gateio.NewGateIO(u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey)
-	history, err := client.MyTradeHistory(strings.ToUpper(u.Pair), "")
+	history, err := client.MyTradeHistory(strings.ToUpper(u.Pair))
 	if err != nil {
 		return err
 	}
@@ -97,23 +137,23 @@ func (n *Node) getUserHistory(ctx context.Context, u User) error {
 
 	coll := n.db.Collection(n.historyCollName(u))
 	for _, t := range history.Trades {
-		trade := Trade{
+		trade := types.Trade{
 			TradeId:     t.TradeId,
 			OrderNumber: t.OrderNumber,
 			Label:       label,
 			Pair:        strings.ToUpper(t.Pair),
 			Type:        t.Type,
-			Rate:        strToFloat64(t.Rate),
-			Amount:      strToFloat64(t.Amount),
+			Rate:        convert.StrToFloat64(t.Rate),
+			Amount:      convert.StrToFloat64(t.Amount),
 			Total:       t.Total,
 			DateString:  t.Date,
 			Date:        time.Unix(t.TimeUnix, 0),
 			TimeUnix:    t.TimeUnix,
 			Role:        t.Role,
-			Fee:         strToFloat64(t.Fee),
+			Fee:         convert.StrToFloat64(t.Fee),
 			FeeCoin:     t.FeeCoin,
-			GtFee:       strToFloat64(t.GtFee),
-			PointFee:    strToFloat64(t.PointFee),
+			GtFee:       convert.StrToFloat64(t.GtFee),
+			PointFee:    convert.StrToFloat64(t.PointFee),
 		}
 
 		if _, err := coll.InsertOne(ctx, trade); err != nil {
@@ -133,22 +173,12 @@ func (n *Node) getUserHistory(ctx context.Context, u User) error {
 }
 
 func (n *Node) Profit(ctx context.Context, label, start, end string) error {
-	secondsEastOfUTC := int((8 * time.Hour).Seconds())
-	beijing := time.FixedZone("Beijing Time", secondsEastOfUTC)
-	layout := "2006-01-02 15:04:05"
-	startTime, err := time.ParseInLocation(layout, start, beijing)
+	startTime, endTime, err := parseTime(start, end)
 	if err != nil {
-		log.Printf("error start format: %s", start)
+		log.Println(err)
 		return err
 	}
-	endTime, err := time.ParseInLocation(layout, end, beijing)
-	if err != nil {
-		log.Printf("error end format: %s", end)
-		return err
-	}
-	if !startTime.Before(endTime) {
-		log.Printf("start time(%s) must before end time(%s)", startTime.String(), endTime.String())
-	}
+
 	for _, u := range n.config.Users {
 		select {
 		case <-ctx.Done():
@@ -167,21 +197,9 @@ func (n *Node) Profit(ctx context.Context, label, start, end string) error {
 }
 
 func (n *Node) getUserProfit(ctx context.Context, u User, start, end time.Time) error {
-	coll := n.db.Collection(n.historyCollName(u))
-	cursor, err := coll.Find(ctx, bson.D{
-		{"pair", strings.ToUpper(u.Pair)},
-		{"label", u.Label},
-		{"date", bson.D{
-			{"$gte", start},
-			{"$lte", end},
-		}},
-	})
+	trades, err := n.getUserTrades(ctx, u, start, end)
 	if err != nil {
 		return err
-	}
-	var trades []Trade
-	if err1 := cursor.All(ctx, &trades); err1 != nil {
-		return err1
 	}
 	sero := 0.0
 	usdt := 0.0
@@ -231,11 +249,11 @@ func (n *Node) getUserAsset(ctx context.Context, u User) error {
 		return err
 	}
 
-	b := Balance{
+	b := types.Balance{
 		Label: u.Label,
-		SERO:  strToFloat64(balances.Available["SERO"]) + strToFloat64(balances.Locked["SERO"]),
-		USDT:  strToFloat64(balances.Available["USDT"]) + strToFloat64(balances.Locked["USDT"]),
-		GT:    strToFloat64(balances.Available["GT"]) + strToFloat64(balances.Locked["GT"]),
+		SERO:  convert.StrToFloat64(balances.Available["SERO"]) + convert.StrToFloat64(balances.Locked["SERO"]),
+		USDT:  convert.StrToFloat64(balances.Available["USDT"]) + convert.StrToFloat64(balances.Locked["USDT"]),
+		GT:    convert.StrToFloat64(balances.Available["GT"]) + convert.StrToFloat64(balances.Locked["GT"]),
 		Time:  time.Now(),
 	}
 
@@ -249,17 +267,120 @@ func (n *Node) getUserAsset(ctx context.Context, u User) error {
 	return nil
 }
 
-func strToInt64(s string, i64 *int64) {
-	if i, ok := big.NewInt(0).SetString(s, 0); ok {
-		*i64 = i.Int64()
+func (n *Node) Export(ctx context.Context, label, start, end, csvfile string) error {
+	startTime, endTime, err := parseTime(start, end)
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	f, err := os.Create(csvfile)
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	defer func() {
+		_ = f.Close()
+	}()
+
+	w := csv.NewWriter(f)
+	header := []string{"account", "time", "type", "price", "SERO", "USDT", "GT", "tradeId", "orderNumber"}
+	if err = w.Write(header); err != nil {
+		log.Printf("error when write csv header: %s", err)
+	}
+	w.Flush()
+
+	for _, u := range n.config.Users {
+		select {
+		case <-ctx.Done():
+			log.Println(ctx.Err())
+			return nil
+		default:
+			if label != "" && u.Label != label {
+				continue
+			}
+			trades, err := n.getUserTrades(ctx, u, startTime, endTime);
+			if err != nil {
+				log.Printf("error when getUserAsset: %s", err)
+				continue
+			}
+			//write to csv
+			for _, t := range trades {
+				SERO := t.Amount
+				USDT := t.Total
+				GT := - t.GtFee
+				switch t.Type {
+				case "buy":
+					USDT *= -1
+				case "sell":
+					SERO *= -1
+				}
+				record := []string{
+					t.Label,
+					t.DateString,
+					t.Type,
+					fmt.Sprintf("%f", t.Rate),
+					fmt.Sprintf("%f", SERO),
+					fmt.Sprintf("%f", USDT),
+					fmt.Sprintf("%f", GT),
+					fmt.Sprintf("%d", t.TradeId),
+					fmt.Sprintf("%d", t.OrderNumber),
+				}
+				if err1 := w.Write(record); err1 != nil {
+					log.Printf("error when write record: %s", err1)
+				}
+			}
+			w.Flush()
+		}
+	}
+
+	return nil
+}
+
+func (n *Node) getUserTrades(ctx context.Context, u User, start, end time.Time) (trades []types.Trade, err error) {
+	coll := n.db.Collection(n.historyCollName(u))
+	cursor, err := coll.Find(ctx, bson.D{
+		{"pair", strings.ToUpper(u.Pair)},
+		{"label", u.Label},
+		{"date", bson.D{
+			{"$gte", start},
+			{"$lte", end},
+		}},
+	})
+	if err != nil {
+		return
+	}
+	err = cursor.All(ctx, &trades)
+
+	return
+}
+
+func (n *Node) initGrid(ctx context.Context) {
+	for _, u := range n.config.Users {
+		g := grid.Grid{
+			Exchange:   u.Exchange,
+			Label:      u.Label,
+			Pair:       u.Pair,
+			APIKeyPair: u.APIKeyPair,
+
+			Percentage: n.config.Grid.Percentage,
+			Fund:       n.config.Grid.Fund,
+			MaxGrid:    n.config.Grid.MaxGrid,
+
+			PricePrecision:  gateio.PricePercision,
+			AmountPrecision: gateio.AmountPercision,
+
+			DB: n.db,
+		}
+		if err := g.Load(ctx); err != nil {
+			log.Fatalf("error when load grid: %s", err)
+		}
+		n.grids = append(n.grids, g)
 	}
 }
-func strToFloat64(s string) float64 {
-	if f, ok := big.NewFloat(0).SetString(s); ok {
-		f64, _ := f.Float64()
-		return f64
-	}
-	return 0.0
+
+func (n *Node) resetGridBase() {
+	// use ticker.Last to set base
+	//client := gateio.NewGateIO(u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey)
 }
 
 func isDuplicateError(err error) bool {
@@ -278,4 +399,26 @@ func (n *Node) historyCollName(u User) string {
 }
 func (n *Node) balanceCollName(u User) string {
 	return "balance_" + u.Exchange
+}
+
+func parseTime(start, end string) (startTime, endTime time.Time, err error) {
+	secondsEastOfUTC := int((8 * time.Hour).Seconds())
+	beijing := time.FixedZone("Beijing Time", secondsEastOfUTC)
+	layout := "2006-01-02 15:04:05"
+	startTime, err = time.ParseInLocation(layout, start, beijing)
+	if err != nil {
+		log.Printf("error start format: %s", start)
+		return
+	}
+	endTime, err = time.ParseInLocation(layout, end, beijing)
+	if err != nil {
+		log.Printf("error end format: %s", end)
+		return
+	}
+	if !startTime.Before(endTime) {
+		err = errors.New(fmt.Sprintf("start time(%s) must before end time(%s)", startTime.String(), endTime.String()))
+		log.Println(err)
+		return
+	}
+	return
 }

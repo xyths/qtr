@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"strconv"
 	"testing"
 )
 
@@ -42,7 +43,7 @@ func TestGateIO_MyTradeHistory(t *testing.T) {
 	secretKey := os.Getenv("secretKey")
 	t.Logf("apiKey: %s, secretKey: %s", apiKey, secretKey)
 	gateio := NewGateIO(apiKey, secretKey)
-	if history, err := gateio.MyTradeHistory("SERO_USDT", ""); err != nil {
+	if history, err := gateio.MyTradeHistory("SERO_USDT"); err != nil {
 		t.Logf("error when TradeHistory: %s", err)
 	} else {
 		var buf bytes.Buffer
@@ -66,4 +67,73 @@ func TestGateIO_Balances(t *testing.T) {
 		t.Logf("error when Balances: %s", err)
 	}
 	t.Logf("balances is %#v", balances)
+}
+
+// apiKey=xxx secretKey=yyy go test -v -run TestGateIO_Buy ./gateio
+func TestGateIO_Buy(t *testing.T) {
+	apiKey := os.Getenv("apiKey")
+	secretKey := os.Getenv("secretKey")
+	gateio := NewGateIO(apiKey, secretKey)
+
+	res, err := gateio.Buy("SERO_USDT", 0.023456, 100.123456)
+	if err != nil {
+		t.Logf("error: %s", err)
+		return
+	}
+	t.Logf("res is %#v", res)
+}
+
+// apiKey=xxx secretKey=yyy orderNumber=zzz go test -v -run TestGateIO_GetOrder ./gateio
+func TestGateIO_GetOrder(t *testing.T) {
+	apiKey := os.Getenv("apiKey")
+	secretKey := os.Getenv("secretKey")
+	orderNumber, _ := strconv.Atoi(os.Getenv("orderNumber"))
+	gateio := NewGateIO(apiKey, secretKey)
+
+	res, err := gateio.GetOrder(uint64(orderNumber), "SERO_USDT")
+	if err != nil {
+		t.Logf("error: %s", err)
+		return
+	}
+	t.Logf("res is %#v", res)
+}
+
+// apiKey=xxx secretKey=yyy go test -v -run TestGateIO_OpenOrders ./gateio
+func TestGateIO_OpenOrders(t *testing.T) {
+	apiKey := os.Getenv("apiKey")
+	secretKey := os.Getenv("secretKey")
+	gateio := NewGateIO(apiKey, secretKey)
+
+	//_ = gateio
+	res, err := gateio.OpenOrders()
+	if err != nil {
+		t.Logf("error: %s", err)
+	}
+	t.Logf("res is %#v", res)
+}
+
+// apiKey=xxx secretKey=yyy go test -v -run TestGateIO_Ticker ./gateio
+func TestGateIO_Ticker(t *testing.T) {
+	apiKey := os.Getenv("apiKey")
+	secretKey := os.Getenv("secretKey")
+	gateio := NewGateIO(apiKey, secretKey)
+
+	//_ = gateio
+	res, err := gateio.Ticker("SERO_USDT")
+	if err != nil {
+		t.Logf("error: %s", err)
+	}
+	t.Logf("SERO_USDT ticker is %#v", res)
+}
+
+func TestFloatPrint(t *testing.T) {
+	testPairs := []float64{
+		3.3,
+		0.123456,
+		111111.12345,
+		1.235,
+	}
+	for _, f := range testPairs {
+		t.Logf("%f => %.2f", f, f)
+	}
 }

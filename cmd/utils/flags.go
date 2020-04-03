@@ -29,4 +29,11 @@ var (
 		Value:   "",
 		Usage:   "end `time` (e.g. \"2020-04-01 23:59:59\", default: now)",
 	}
+
+
+	CsvFlag = &cli.StringFlag{
+		Name:    "csv",
+		Value:   "",
+		Usage:   "write to `file`",
+	}
 )

@@ -22,8 +22,15 @@ type History struct {
 	Interval string `json:"interval"`
 }
 
+type GridConf struct {
+	Interval   string
+	Percentage float64
+	Fund       float64
+	MaxGrid    int
+}
 type Config struct {
 	Users   []User
 	Mongo   MongoConf
 	History History
+	Grid    GridConf
 }
