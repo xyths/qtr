@@ -294,6 +294,8 @@ func (g *GateIO) request(method string, url string, param string, result interfa
 		//log.Printf("error: %s", err)
 		return err
 	}
-	//log.Printf("raw response: %s", string(data))
-	return json.Unmarshal(data, result)
+	if err = json.Unmarshal(data, result); err != nil {
+		log.Printf("raw response: %s", string(data))
+	}
+	return err
 }
