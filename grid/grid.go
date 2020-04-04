@@ -3,8 +3,8 @@ package grid
 import (
 	"context"
 	"fmt"
+	"github.com/xyths/qtr/exchange"
 	"github.com/xyths/qtr/gateio"
-	"github.com/xyths/qtr/types"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -37,8 +37,8 @@ type Grid struct {
 	DownTimes int     `bson:"downTimes"`
 	Base      float64 `bson:"base"`
 
-	topOrder    *types.Order `bson:"-"`
-	bottomOrder *types.Order `bson:"-"`
+	topOrder    *exchange.Order `bson:"-"`
+	bottomOrder *exchange.Order `bson:"-"`
 }
 
 func (g *Grid) Load(ctx context.Context) error {
@@ -197,7 +197,7 @@ func (g *Grid) orderTop(last float64) {
 		log.Printf("error when order top, price: %f, amount: %f, error: %s", price, amount, err)
 		return
 	}
-	g.topOrder = &types.Order{
+	g.topOrder = &exchange.Order{
 		OrderNumber: res.OrderNumber,
 	}
 	log.Printf("[INFO] orderTop: price %f, amount %f, orderNumber %d", price, amount, g.topOrder.OrderNumber)
@@ -212,7 +212,7 @@ func (g *Grid) orderBottom(last float64) {
 		log.Printf("error when order bottom, price: %f, amount: %f, error: %s", price, amount, err)
 		return
 	}
-	g.bottomOrder = &types.Order{
+	g.bottomOrder = &exchange.Order{
 		OrderNumber: res.OrderNumber,
 	}
 	log.Printf("[INFO] orderBottom: price %f, amount %f, orderNumber %d", price, amount, g.topOrder.OrderNumber)
@@ -259,10 +259,10 @@ func (g *Grid) checkBottomOrder() (string, error) {
 
 func (g *Grid) checkOrder(orderNumber uint64) (string, error) {
 	client := gateio.NewGateIO(g.APIKeyPair.ApiKey, g.APIKeyPair.SecretKey)
-	if res, err := client.GetOrder(orderNumber, g.Pair); err != nil {
+	if o, err := client.GetOrder(orderNumber, g.Pair); err != nil {
 		return "", err
 	} else {
-		return res.Order.Status, nil
+		return o.Status, nil
 	}
 }
 

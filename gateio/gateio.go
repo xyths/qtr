@@ -5,8 +5,9 @@ import (
 	"crypto/sha512"
 	"encoding/json"
 	"fmt"
+	"github.com/pkg/errors"
 	"github.com/xyths/hs/convert"
-	"github.com/xyths/qtr/types"
+	"github.com/xyths/qtr/exchange"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -68,14 +69,14 @@ func (g *GateIO) GetPairs() (string, error) {
 //}
 //
 // ticker
-func (g *GateIO) Ticker(currencyPair string) (ticker *types.Ticker, err error) {
+func (g *GateIO) Ticker(currencyPair string) (ticker *exchange.Ticker, err error) {
 	url := DataSource + "/ticker" + "/" + currencyPair
 	param := ""
 	var t ResponseTicker
 	if err = g.request(GET, url, param, &t); err != nil {
 		return
 	}
-	ticker = &types.Ticker{
+	ticker = &exchange.Ticker{
 		Last:          convert.StrToFloat64(t.Last),
 		LowestAsk:     convert.StrToFloat64(t.LowestAsk),
 		HighestBid:    convert.StrToFloat64(t.HighestBid),
@@ -184,10 +185,22 @@ func (g *GateIO) CancelAllOrders(types string, currencyPair string) (res Respons
 }
 
 // Get order status
-func (g *GateIO) GetOrder(orderNumber uint64, currencyPair string) (res ResponseGetOrder, err error) {
+func (g *GateIO) GetOrder(orderNumber uint64, currencyPair string) (order exchange.Order, err error) {
 	url := DataSource + "/private/getOrder"
 	param := fmt.Sprintf("orderNumber=%d&currencyPair=%s", orderNumber, currencyPair)
+	var res ResponseGetOrder
 	err = g.request(POST, url, param, &res)
+	if err != nil {
+		return
+	}
+	if res.Result != "true" || res.Message != "Success" {
+		log.Printf("request not success: %#v", res)
+		return order, errors.New(res.Message)
+	}
+	o := &res.Order
+	order.OrderNumber = convert.StrToUint64(o.OrderNumber)
+	order.Status = o.Status
+
 	return
 }
 

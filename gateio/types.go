@@ -92,11 +92,11 @@ type RawOrderInGetOrder struct {
 	CurrencyPair string
 	Type         string
 
-	Rate          string // 价格
-	Amount        string // 买卖数量
-	InitialRate   string // 下单价格
-	InitialAmount string // 下单数量
-	FilledRate    string
+	Rate          string      // 价格
+	Amount        string      // 买卖数量
+	InitialRate   string      // 下单价格
+	InitialAmount string      // 下单数量
+	FilledRate    interface{} // string when open, float64 when closed
 	FilledAmount  string
 
 	FeePercentage float64
