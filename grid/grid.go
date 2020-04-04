@@ -95,6 +95,7 @@ func (g *Grid) DoWork(ctx context.Context) error {
 	if g.Base == 0 {
 		g.Base = last
 		_ = g.Save(ctx)
+		log.Printf("[INFO] init base to %f", g.Base)
 	}
 	if g.TopOrderId == 0 {
 		g.orderTop(last)
@@ -125,7 +126,11 @@ func (g *Grid) DoWork(ctx context.Context) error {
 
 func (g *Grid) up(last float64) bool {
 	if g.UpTimes >= g.MaxGrid {
-		log.Printf("已连续向上突破 %d 次，达到设置的最大次数(%d)。", g.UpTimes, g.MaxGrid)
+		log.Printf("[INFO] 已连续向上突破 %d 次，达到设置的最大次数(%d)。", g.UpTimes, g.MaxGrid)
+		return false
+	}
+	if g.Position >= 2*g.MaxGrid {
+		log.Printf("[INFO] 共计向上突破 %d 次，已达到设置的最大次数(%d)。", g.UpTimes, 2*g.MaxGrid)
 		return false
 	}
 	if g.DownTimes > 0 {
@@ -149,7 +154,11 @@ func (g *Grid) up(last float64) bool {
 
 func (g *Grid) down(last float64) bool {
 	if g.DownTimes >= g.MaxGrid {
-		log.Printf("已连续向下突破 %d 次，达到设置的最大次数(%d)。", g.DownTimes, g.MaxGrid)
+		log.Printf("[INFO] 已连续向下突破 %d 次，达到设置的最大次数(%d)。", g.DownTimes, g.MaxGrid)
+		return false
+	}
+	if g.Position <= -2*g.MaxGrid {
+		log.Printf("[INFO] 共计向下突破 %d 次，已达到设置的最大次数(%d)。", g.DownTimes, 2*g.MaxGrid)
 		return false
 	}
 	if g.UpTimes > 0 {
