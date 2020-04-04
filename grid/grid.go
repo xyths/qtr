@@ -53,8 +53,8 @@ func (g *Grid) Load(ctx context.Context) error {
 		log.Print(err)
 		return err
 	}
-	log.Printf("[INFO] Load grid status: base %f, position %d, upTimes %d, downTimes %d",
-		g.Base, g.Position, g.UpTimes, g.DownTimes)
+	log.Printf("[INFO] Load grid status: base %f, position %d, upTimes %d, downTimes %d, topOrder %d, bottomOrder %d",
+		g.Base, g.Position, g.UpTimes, g.DownTimes, g.TopOrderId, g.BottomOrderId)
 	return nil
 }
 
@@ -99,9 +99,11 @@ func (g *Grid) DoWork(ctx context.Context) error {
 	}
 	if g.TopOrderId == 0 {
 		g.orderTop(last)
+		_ = g.Save(ctx)
 	}
 	if g.BottomOrderId == 0 {
 		g.orderBottom(last)
+		_ = g.Save(ctx)
 	}
 	// 如果向上突破，撤bottom，下双边新单
 	if status, err := g.checkTopOrder(); err != nil {
