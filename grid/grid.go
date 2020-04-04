@@ -3,16 +3,13 @@ package grid
 import (
 	"context"
 	"fmt"
-	"github.com/xyths/qtr/exchange"
 	"github.com/xyths/qtr/gateio"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
 	"math"
 	"strconv"
-	"time"
 )
 
 const (
@@ -33,31 +30,21 @@ type Grid struct {
 
 	DB *mongo.Database `bson:"-"`
 
-	UpTimes   int     `bson:"upTimes"`
-	DownTimes int     `bson:"downTimes"`
-	Base      float64 `bson:"base"`
-
-	topOrder    *exchange.Order `bson:"-"`
-	bottomOrder *exchange.Order `bson:"-"`
+	Base          float64 `bson:"base"`
+	Position      int     `bson:"position"`
+	UpTimes       int     `bson:"upTimes"`
+	DownTimes     int     `bson:"downTimes"`
+	TopOrderId    uint64  `bson:"topOrderId"`
+	BottomOrderId uint64  `bson:"bottomOrderId"`
 }
 
 func (g *Grid) Load(ctx context.Context) error {
-	type gridStatus struct {
-		Id primitive.ObjectID `bson:"_id"`
-
-		Base      float64 `bson:"base"`
-		UpTimes   int     `bson:"upTimes"`
-		DownTimes int     `bson:"downTimes"`
-
-		LastModified time.Time `bson:"lastModified"`
-	}
-	var s gridStatus
 	coll := g.DB.Collection(CollName)
 	err := coll.FindOne(ctx, bson.D{
 		{"exchange", g.Exchange},
 		{"label", g.Label},
 		{"pair", g.Pair},
-	}).Decode(&s)
+	}).Decode(&g)
 	if err != nil {
 		// ErrNoDocuments means that the filter did not match any documents in the collection
 		if err == mongo.ErrNoDocuments {
@@ -66,10 +53,8 @@ func (g *Grid) Load(ctx context.Context) error {
 		log.Print(err)
 		return err
 	}
-	g.Base = s.Base
-	g.UpTimes = s.UpTimes
-	g.DownTimes = s.DownTimes
-	log.Printf("[INFO] Load grid status: base %f, upTimes %d, downTimes %d", g.Base, g.UpTimes, g.DownTimes)
+	log.Printf("[INFO] Load grid status: base %f, position %d, upTimes %d, downTimes %d",
+		g.Base, g.Position, g.UpTimes, g.DownTimes)
 	return nil
 }
 
@@ -85,8 +70,11 @@ func (g *Grid) Save(ctx context.Context) error {
 		bson.D{
 			{"$set", bson.D{
 				{"base", g.Base},
+				{"position", g.Position},
 				{"upTimes", g.UpTimes},
 				{"downTimes", g.DownTimes},
+				{"topOrderId", g.TopOrderId},
+				{"bottomOrderId", g.BottomOrderId},
 			}},
 			{"$currentDate", bson.D{
 				{"lastModified", true},
@@ -108,10 +96,10 @@ func (g *Grid) DoWork(ctx context.Context) error {
 		g.Base = last
 		_ = g.Save(ctx)
 	}
-	if g.topOrder == nil {
+	if g.TopOrderId == 0 {
 		g.orderTop(last)
 	}
-	if g.bottomOrder == nil {
+	if g.BottomOrderId == 0 {
 		g.orderBottom(last)
 	}
 	// 如果向上突破，撤bottom，下双边新单
@@ -144,12 +132,14 @@ func (g *Grid) up(last float64) bool {
 		g.DownTimes = 0
 	}
 	g.UpTimes++
+	g.Position++
 
 	newBase := g.Base / (1 - g.Percentage)
 
 	g.Base = g.Truncate(newBase, g.PricePrecision)
 
-	log.Printf("[INFO] base UP from %f to %f", g.Base, newBase)
+	log.Printf("[INFO] base UP from %f to %f, position %d, upTimes %d, downTimes %d",
+		g.Base, newBase, g.Position, g.UpTimes, g.DownTimes)
 	g.cancelBottom()
 	g.orderTop(last)
 	g.orderBottom(last)
@@ -166,12 +156,14 @@ func (g *Grid) down(last float64) bool {
 		g.UpTimes = 0
 	}
 	g.DownTimes++
+	g.Position--
 
 	newBase := g.Base * (1 - g.Percentage)
 
 	g.Base = g.Truncate(newBase, g.PricePrecision)
 
-	log.Printf("[INFO] base DOWN from %f to %f", g.Base, newBase)
+	log.Printf("[INFO] base DOWN from %f to %f, position %d, upTimes %d, downTimes %d",
+		g.Base, newBase, g.Position, g.UpTimes, g.DownTimes)
 	g.cancelTop()
 	g.orderTop(last)
 	g.orderBottom(last)
@@ -197,10 +189,8 @@ func (g *Grid) orderTop(last float64) {
 		log.Printf("error when order top, price: %f, amount: %f, error: %s", price, amount, err)
 		return
 	}
-	g.topOrder = &exchange.Order{
-		OrderNumber: res.OrderNumber,
-	}
-	log.Printf("[INFO] orderTop: price %f, amount %f, orderNumber %d", price, amount, g.topOrder.OrderNumber)
+	g.TopOrderId = res.OrderNumber
+	log.Printf("[INFO] orderTop: price %f, amount %f, orderNumber %d", price, amount, g.TopOrderId)
 }
 
 func (g *Grid) orderBottom(last float64) {
@@ -212,10 +202,8 @@ func (g *Grid) orderBottom(last float64) {
 		log.Printf("error when order bottom, price: %f, amount: %f, error: %s", price, amount, err)
 		return
 	}
-	g.bottomOrder = &exchange.Order{
-		OrderNumber: res.OrderNumber,
-	}
-	log.Printf("[INFO] orderBottom: price %f, amount %f, orderNumber %d", price, amount, g.topOrder.OrderNumber)
+	g.BottomOrderId = res.OrderNumber
+	log.Printf("[INFO] orderBottom: price %f, amount %f, orderNumber %d", price, amount, g.TopOrderId)
 }
 
 func (g *Grid) OrderBoth(last float64) {
@@ -237,13 +225,13 @@ func (g *Grid) cancelOrder(orderNumber uint64) {
 }
 
 func (g *Grid) cancelTop() {
-	g.cancelOrder(g.topOrder.OrderNumber)
-	g.topOrder = nil
+	g.cancelOrder(g.TopOrderId)
+	g.TopOrderId = 0
 }
 
 func (g *Grid) cancelBottom() {
-	g.cancelOrder(g.bottomOrder.OrderNumber)
-	g.bottomOrder = nil
+	g.cancelOrder(g.BottomOrderId)
+	g.BottomOrderId = 0
 }
 
 func (g *Grid) cancelBoth() {
@@ -252,11 +240,11 @@ func (g *Grid) cancelBoth() {
 }
 
 func (g *Grid) checkTopOrder() (string, error) {
-	return g.checkOrder(g.topOrder.OrderNumber)
+	return g.checkOrder(g.TopOrderId)
 }
 
 func (g *Grid) checkBottomOrder() (string, error) {
-	return g.checkOrder(g.bottomOrder.OrderNumber)
+	return g.checkOrder(g.BottomOrderId)
 }
 
 func (g *Grid) checkOrder(orderNumber uint64) (string, error) {
