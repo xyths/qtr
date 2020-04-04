@@ -169,10 +169,12 @@ func (g *GateIO) Sell(currencyPair string, rate, amount float64) (res ResponseSe
 }
 
 // Cancel order
-func (g *GateIO) CancelOrder(currencyPair string, orderNumber uint64) (res ResponseCancel, err error) {
+func (g *GateIO) CancelOrder(currencyPair string, orderNumber uint64) (ok bool, err error) {
 	url := DataSource + "/private/cancelOrder"
 	param := fmt.Sprintf("currencyPair=%s&orderNumber=%d", currencyPair, orderNumber)
+	var res ResponseCancel
 	err = g.request(POST, url, param, &res)
+	ok = res.Result
 	return
 }
 

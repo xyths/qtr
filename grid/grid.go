@@ -225,12 +225,14 @@ func (g *Grid) OrderBoth(last float64) {
 
 func (g *Grid) cancelOrder(orderNumber uint64) {
 	client := gateio.NewGateIO(g.APIKeyPair.ApiKey, g.APIKeyPair.SecretKey)
-	res, err := client.CancelOrder(g.Pair, orderNumber)
+	success, err := client.CancelOrder(g.Pair, orderNumber)
 	if err != nil {
 		log.Printf("cancel order %d error: %s", orderNumber, err)
+		return
 	}
-	if res.Result != "success" {
-		log.Printf("cancel order %d failed: (%s)%s", orderNumber, res.Result, res.Message)
+	if !success {
+		log.Printf("cancel order %d failed", orderNumber)
+		return
 	}
 }
 

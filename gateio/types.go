@@ -73,7 +73,8 @@ type ResponseBuy struct {
 type ResponseSell ResponseOrder
 
 type ResponseCancel struct {
-	Result  string
+	Result  bool
+	Code    int
 	Message string
 }
 
