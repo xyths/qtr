@@ -151,3 +151,11 @@ type ResponseTicker struct {
 	High24hr      string // 24小时最高价
 	Low24hr       string // 24小时最低价
 }
+
+type RawCandle [6]string
+
+type ResponseCandles struct {
+	Result  string // true
+	Elapsed string
+	Data    []RawCandle
+}

@@ -56,6 +56,19 @@ func TestGateIO_MyTradeHistory(t *testing.T) {
 	}
 }
 
+// apiKey=xxx secretKey=yyy go test -v -run TestGateIO_Candles ./gateio
+func TestGateIO_Candles(t *testing.T) {
+	apiKey := os.Getenv("apiKey")
+	secretKey := os.Getenv("secretKey")
+	t.Logf("apiKey: %s, secretKey: %s", apiKey, secretKey)
+	gateio := NewGateIO(apiKey, secretKey)
+	if candles, err := gateio.Candles("SERO_USDT", 1, 1); err != nil {
+		t.Logf("error when Candles: %s", err)
+	} else {
+		t.Log(candles)
+	}
+}
+
 // apiKey=xxx secretKey=yyy go test -v -run TestGateIO_Balances ./gateio
 func TestGateIO_Balances(t *testing.T) {
 	apiKey := os.Getenv("apiKey")

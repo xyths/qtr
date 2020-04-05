@@ -142,11 +142,10 @@ func (g *Grid) up(last float64) bool {
 	g.Position++
 
 	newBase := g.Base / (1 - g.Percentage)
-
-	g.Base = g.Truncate(newBase, g.PricePrecision)
-
 	log.Printf("[INFO] base UP from %f to %f, position %d, upTimes %d, downTimes %d",
 		g.Base, newBase, g.Position, g.UpTimes, g.DownTimes)
+	g.Base = g.Truncate(newBase, g.PricePrecision)
+
 	g.cancelBottom()
 	g.orderTop(last)
 	g.orderBottom(last)
@@ -170,11 +169,10 @@ func (g *Grid) down(last float64) bool {
 	g.Position--
 
 	newBase := g.Base * (1 - g.Percentage)
-
-	g.Base = g.Truncate(newBase, g.PricePrecision)
-
 	log.Printf("[INFO] base DOWN from %f to %f, position %d, upTimes %d, downTimes %d",
 		g.Base, newBase, g.Position, g.UpTimes, g.DownTimes)
+	g.Base = g.Truncate(newBase, g.PricePrecision)
+
 	g.cancelTop()
 	g.orderTop(last)
 	g.orderBottom(last)

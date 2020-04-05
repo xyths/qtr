@@ -107,6 +107,30 @@ func (g *GateIO) Ticker(currencyPair string) (ticker *exchange.Ticker, err error
 //	return ret
 //}
 //
+
+// 获取Candle
+func (g *GateIO) Candles(currencyPair string, groupSec, rangeHour int) (candles []exchange.Candle, err error) {
+	url := fmt.Sprintf("%s/candlestick2/%s?group_sec=%d&range_hour=%d", DataSource, currencyPair, groupSec, rangeHour)
+	param := ""
+
+	var result ResponseCandles
+	err = g.request(GET, url, param, &result)
+	if err != nil {
+		return nil, err
+	}
+	for _, c := range result.Data {
+		candles = append(candles, exchange.Candle{
+			Timestamp: convert.StrToUint64(c[0]),
+			Volume:    convert.StrToFloat64(c[1]),
+			Close:     convert.StrToFloat64(c[2]),
+			High:      convert.StrToFloat64(c[3]),
+			Low:       convert.StrToFloat64(c[4]),
+			Open:      convert.StrToFloat64(c[5]),
+		})
+	}
+	return
+}
+
 // Trade History
 func (g *GateIO) TradeHistory(params string) (string, error) {
 	url := DataSource + "/TradeHistory/" + params

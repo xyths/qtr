@@ -32,3 +32,12 @@ type Ticker struct {
 	High24hr      float64 // 24小时最高价
 	Low24hr       float64 // 24小时最低价
 }
+
+type Candle struct {
+	Timestamp uint64
+	Open      float64
+	Close     float64
+	High      float64
+	Low       float64
+	Volume    float64
+}
