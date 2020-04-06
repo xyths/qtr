@@ -11,7 +11,7 @@ import "time"
 //	time: 订单时间
 //	time_unix: 订单unix时间戳
 type Trade struct {
-	TradeId     uint64    `bson:"_id"`
+	TradeId     uint64    `bson:"_id" gorm:"primary_key"`
 	OrderNumber uint64    `bson:"orderNumber"`
 	Label       string    `bson:"label"`
 	Pair        string    `bson:"pair"`
@@ -19,9 +19,7 @@ type Trade struct {
 	Rate        float64   `bson:"rate"` //成交价格
 	Amount      float64   `bson:"amount"`
 	Total       float64   `bson:"total"`
-	DateString  string    `bson:"dateString"` // for log
 	Date        time.Time `bson:"date"`
-	TimeUnix    int64     `bson:"timeUnix"`
 	Role        string    `bson:"role"`
 	Fee         float64   `bson:"fee"`
 	FeeCoin     string    `bson:"feeCoin"`

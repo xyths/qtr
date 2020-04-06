@@ -1,4 +1,4 @@
-package qcandle
+package main
 
 import (
 	"fmt"
@@ -21,10 +21,8 @@ func init() {
 	}
 
 	app.Commands = []*cli.Command{
-		gridCommand,
-		historyCommand,
-		profitCommand,
-		snapshotCommand,
+		downloadCommand,
+		exportCommand,
 	}
 	app.Flags = []cli.Flag{
 		utils.ConfigFlag,

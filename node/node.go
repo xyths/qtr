@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
+	"github.com/jinzhu/gorm"
+	_ "github.com/jinzhu/gorm/dialects/mysql"
 	"github.com/pkg/errors"
 	"github.com/xyths/hs/convert"
 	"github.com/xyths/qtr/gateio"
@@ -20,17 +22,19 @@ import (
 
 type Node struct {
 	config Config
-	db     *mongo.Database
+	mg     *mongo.Database
+	gormDB *gorm.DB
 	grids  []grid.Grid
 }
 
 func (n *Node) Init(ctx context.Context, cfg Config) {
 	n.config = cfg
-	n.initMongo(ctx, cfg)
+	n.initMongo(ctx)
+	n.initMySQL(ctx)
 }
 
-func (n *Node) initMongo(ctx context.Context, config Config) {
-	clientOpts := options.Client().ApplyURI(config.Mongo.URI)
+func (n *Node) initMongo(ctx context.Context) {
+	clientOpts := options.Client().ApplyURI(n.config.Mongo.URI)
 	client, err := mongo.Connect(ctx, clientOpts)
 	if err != nil {
 		log.Fatal("Error when connect to mongo:", err)
@@ -40,9 +44,24 @@ func (n *Node) initMongo(ctx context.Context, config Config) {
 	if err != nil {
 		log.Fatal("Error when ping to mongo:", err)
 	}
-	n.db = client.Database(config.Mongo.Database)
+	n.mg = client.Database(n.config.Mongo.Database)
 }
 
+func (n *Node) initMySQL(ctx context.Context) {
+	db, err := gorm.Open("mysql", n.config.MySQL.URI)
+	if err != nil {
+		log.Fatal("Error when connect to MySQL:", err)
+	}
+	n.gormDB = db
+}
+
+func (n *Node) Close() {
+	if n.gormDB != nil {
+		if err := n.gormDB.Close(); err != nil {
+			log.Printf("error when gorm close")
+		}
+	}
+}
 func (n *Node) Grid(ctx context.Context) error {
 	d, err := time.ParseDuration(n.config.Grid.Interval)
 	if err != nil {
@@ -86,7 +105,9 @@ func (n *Node) PullHistory(ctx context.Context) error {
 	if err != nil {
 		log.Fatalf("parse duration error: %s", err)
 	}
-
+	if !n.gormDB.HasTable(types.Trade{}) {
+		n.gormDB.CreateTable(types.Trade{})
+	}
 	if err := n.getHistoryOnce(ctx); err != nil {
 		log.Printf("error when getHistory: %s", err)
 	}
@@ -116,7 +137,6 @@ func (n *Node) getHistoryOnce(ctx context.Context) error {
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -135,7 +155,7 @@ func (n *Node) getUserHistory(ctx context.Context, u User) error {
 	fail := 0
 	label := u.Label
 
-	coll := n.db.Collection(n.historyCollName(u))
+	//coll := n.mg.Collection(n.historyCollName(u))
 	for _, t := range history.Trades {
 		trade := types.Trade{
 			TradeId:     t.TradeId,
@@ -146,25 +166,34 @@ func (n *Node) getUserHistory(ctx context.Context, u User) error {
 			Rate:        convert.StrToFloat64(t.Rate),
 			Amount:      convert.StrToFloat64(t.Amount),
 			Total:       t.Total,
-			DateString:  t.Date,
 			Date:        time.Unix(t.TimeUnix, 0),
-			TimeUnix:    t.TimeUnix,
 			Role:        t.Role,
 			Fee:         convert.StrToFloat64(t.Fee),
 			FeeCoin:     t.FeeCoin,
 			GtFee:       convert.StrToFloat64(t.GtFee),
 			PointFee:    convert.StrToFloat64(t.PointFee),
 		}
+		if trade.Fee != 0 {
+			trade.Fee *= -1
+		}
+		if trade.GtFee != 0 {
+			trade.GtFee *= -1
+		}
+		if trade.PointFee != 0 {
+			trade.PointFee *= -1
+		}
+		switch trade.Type {
+		case "buy":
+			trade.Total *= -1
+		case "sell":
+			trade.Amount *= -1
+		}
 
-		if _, err := coll.InsertOne(ctx, trade); err != nil {
-			if !isDuplicateError(err) {
-				log.Printf("Error when insert to mongo: %s", err)
-				fail++
-			} else {
-				duplicate++
-			}
-		} else {
+		if n.gormDB.First(&trade).RecordNotFound() {
+			n.gormDB.Create(trade)
 			success++
+		} else {
+			duplicate++
 		}
 	}
 	log.Printf("get history for %s-%s finish now, all: %d, success: %d, duplicate: %d, fail: %d",
@@ -206,7 +235,7 @@ func (n *Node) getUserProfit(ctx context.Context, u User, start, end time.Time) 
 	gtFee := 0.0
 	for _, t := range trades {
 		log.Printf("tradeId: %d, orderNumber: %d, date: %s, type: %s, rate: %f, amount: %f, total: %f, gtFee: %f",
-			t.TradeId, t.OrderNumber, t.DateString, t.Type, t.Rate, t.Amount, t.Total, t.GtFee)
+			t.TradeId, t.OrderNumber, t.Date.String(), t.Type, t.Rate, t.Amount, t.Total, t.GtFee)
 		switch t.Type {
 		case "buy":
 			sero += t.Amount
@@ -257,7 +286,7 @@ func (n *Node) getUserAsset(ctx context.Context, u User) error {
 		Time:  time.Now(),
 	}
 
-	coll := n.db.Collection(n.balanceCollName(u))
+	coll := n.mg.Collection(n.balanceCollName(u))
 
 	if _, err := coll.InsertOne(ctx, b); err != nil {
 		return err
@@ -316,7 +345,7 @@ func (n *Node) Export(ctx context.Context, label, start, end, csvfile string) er
 				}
 				record := []string{
 					t.Label,
-					t.DateString,
+					t.Date.String(),
 					t.Type,
 					fmt.Sprintf("%f", t.Rate),
 					fmt.Sprintf("%f", SERO),
@@ -337,7 +366,7 @@ func (n *Node) Export(ctx context.Context, label, start, end, csvfile string) er
 }
 
 func (n *Node) getUserTrades(ctx context.Context, u User, start, end time.Time) (trades []types.Trade, err error) {
-	coll := n.db.Collection(n.historyCollName(u))
+	coll := n.mg.Collection(n.historyCollName(u))
 	cursor, err := coll.Find(ctx, bson.D{
 		{"pair", strings.ToUpper(u.Pair)},
 		{"label", u.Label},
@@ -369,7 +398,7 @@ func (n *Node) initGrid(ctx context.Context) {
 			PricePrecision:  gateio.PricePercision,
 			AmountPrecision: gateio.AmountPercision,
 
-			DB: n.db,
+			DB: n.mg,
 		}
 		if err := g.Load(ctx); err != nil {
 			log.Fatalf("error when load grid: %s", err)

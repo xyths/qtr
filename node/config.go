@@ -10,6 +10,11 @@ type MongoConf struct {
 	AppName     string `json:"appName"`
 }
 
+type MySQLConf struct {
+	URI string `json:"uri"`
+	Table string
+}
+
 type User struct {
 	Exchange   string
 	Label      string
@@ -31,6 +36,7 @@ type GridConf struct {
 type Config struct {
 	Users   []User
 	Mongo   MongoConf
+	MySQL   MySQLConf
 	History History
 	Grid    GridConf
 }

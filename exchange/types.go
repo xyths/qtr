@@ -34,7 +34,7 @@ type Ticker struct {
 }
 
 type Candle struct {
-	Timestamp uint64
+	Timestamp uint64 `bson:"_id"`
 	Open      float64
 	Close     float64
 	High      float64

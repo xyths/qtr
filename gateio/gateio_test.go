@@ -62,7 +62,7 @@ func TestGateIO_Candles(t *testing.T) {
 	secretKey := os.Getenv("secretKey")
 	t.Logf("apiKey: %s, secretKey: %s", apiKey, secretKey)
 	gateio := NewGateIO(apiKey, secretKey)
-	if candles, err := gateio.Candles("SERO_USDT", 1, 1); err != nil {
+	if candles, err := gateio.Candles("SERO_USDT", 20, 10); err != nil {
 		t.Logf("error when Candles: %s", err)
 	} else {
 		t.Log(candles)

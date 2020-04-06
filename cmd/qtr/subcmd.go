@@ -64,6 +64,7 @@ func grid(ctx *cli.Context) error {
 
 func pull(ctx *cli.Context) error {
 	n := getNode(ctx)
+	defer n.Close()
 	return n.PullHistory(ctx.Context)
 }
 

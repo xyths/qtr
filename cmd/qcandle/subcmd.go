@@ -1,4 +1,4 @@
-package qcandle
+package main
 
 import (
 	"github.com/urfave/cli/v2"
@@ -24,11 +24,13 @@ var (
 )
 
 func download(ctx *cli.Context) error {
-	n := getNode(ctx)
-	return n.Grid(ctx.Context)
+	//n := getNode(ctx)
+	//return n.Grid(ctx.Context)
+	return nil
 }
 
 func export(ctx *cli.Context) error {
-	n := getNode(ctx)
-	return n.Grid(ctx.Context)
+	//n := getNode(ctx)
+	//return n.Grid(ctx.Context)
+	return nil
 }
