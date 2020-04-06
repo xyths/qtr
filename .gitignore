@@ -6,6 +6,8 @@
 *.dylib
 qtr
 qtr.*
+qcandle
+qcandle.*
 
 # Test binary, built with `go test -c`
 *.test

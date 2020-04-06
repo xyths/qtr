@@ -8,6 +8,7 @@ import (
 	_ "github.com/jinzhu/gorm/dialects/mysql"
 	"github.com/pkg/errors"
 	"github.com/xyths/hs/convert"
+	"github.com/xyths/qtr/exchange"
 	"github.com/xyths/qtr/gateio"
 	"github.com/xyths/qtr/grid"
 	"github.com/xyths/qtr/types"
@@ -450,4 +451,33 @@ func parseTime(start, end string) (startTime, endTime time.Time, err error) {
 		return
 	}
 	return
+}
+
+func (n *Node) PullCandle(ctx context.Context) error {
+	if len(n.config.Users) == 0 {
+		log.Fatalf("no user")
+	}
+	if !n.gormDB.HasTable(exchange.Candle{}) {
+		n.gormDB.CreateTable(exchange.Candle{})
+	}
+	u := n.config.Users[0]
+	client := gateio.NewGateIO(u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey)
+	candles, err := client.Candles(u.Pair, 20, 1)
+	if err != nil {
+		log.Printf("error when get candle data: %s", err)
+		return err
+	}
+
+	success := 0
+	duplicate := 0
+	for _, c := range candles {
+		if n.gormDB.First(&c).RecordNotFound() {
+			n.gormDB.Create(&c)
+			success++
+		} else {
+			duplicate++
+		}
+	}
+	log.Printf("[INFO] download record success %d, duplicate %d", success, duplicate)
+	return nil
 }

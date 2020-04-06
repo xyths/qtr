@@ -24,13 +24,14 @@ var (
 )
 
 func download(ctx *cli.Context) error {
-	//n := getNode(ctx)
-	//return n.Grid(ctx.Context)
-	return nil
+	n := utils.GetNode(ctx)
+	defer n.Close()
+	return n.PullCandle(ctx.Context)
 }
 
 func export(ctx *cli.Context) error {
-	//n := getNode(ctx)
-	//return n.Grid(ctx.Context)
+	n := utils.GetNode(ctx)
+	defer n.Close()
+	//return n.Export(ctx.Context)
 	return nil
 }

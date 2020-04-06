@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func Pull(ex *exchange.Exchange, currencyPair string, groupSec, rangeHour int) ([]exchange.Candle, error) {
+func Pull(ex exchange.Exchange, currencyPair string, groupSec, rangeHour int) ([]exchange.Candle, error) {
 	return ex.Candles(currencyPair, groupSec, rangeHour)
 }
 
