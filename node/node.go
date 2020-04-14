@@ -462,7 +462,7 @@ func (n *Node) PullCandle(ctx context.Context) error {
 	}
 	u := n.config.Users[0]
 	client := gateio.NewGateIO(u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey)
-	candles, err := client.Candles(u.Pair, 20, 1)
+	candles, err := client.Candles(u.Pair, 60, 1)
 	if err != nil {
 		log.Printf("error when get candle data: %s", err)
 		return err
