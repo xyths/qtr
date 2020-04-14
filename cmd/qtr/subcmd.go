@@ -55,6 +55,7 @@ var (
 
 func grid(ctx *cli.Context) error {
 	n := utils.GetNode(ctx)
+	defer n.Close()
 	return n.Grid(ctx.Context)
 }
 
@@ -69,12 +70,14 @@ func profit(ctx *cli.Context) error {
 	start := ctx.String(utils.StartTimeFlag.Name)
 	end := ctx.String(utils.EndTimeFlag.Name)
 	n := utils.GetNode(ctx)
+	defer n.Close()
 	return n.Profit(ctx.Context, label, start, end)
 }
 
 func snapshot(ctx *cli.Context) error {
 	label := ctx.String(utils.LabelFlag.Name)
 	n := utils.GetNode(ctx)
+	defer n.Close()
 	return n.Snapshot(ctx.Context, label)
 }
 
@@ -84,5 +87,6 @@ func export(ctx *cli.Context) error {
 	end := ctx.String(utils.EndTimeFlag.Name)
 	csv := ctx.String(utils.CsvFlag.Name)
 	n := utils.GetNode(ctx)
+	defer n.Close()
 	return n.Export(ctx.Context, label, start, end, csv)
 }

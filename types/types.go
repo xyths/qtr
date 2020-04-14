@@ -27,10 +27,12 @@ type Trade struct {
 	PointFee    float64   `bson:"pointFee"`
 }
 
-type Balance struct {
-	Label string
-	SERO  float64 `bson:"SERO"`
-	USDT  float64 `bson:"USDT"`
-	GT    float64 `bson:"GT"`
-	Time  time.Time
+type GateBalance struct {
+	Label     string
+	SERO      float64 `gorm:"Column:sero"`
+	USDT      float64 `gorm:"Column:usdt"`
+	GT        float64 `gorm:"Column:gt"`
+	SeroPrice float64 `gorm:"Column:sero_price"`
+	GtPrice   float64 `gorm:"Column:gt_price"`
+	Time      time.Time
 }

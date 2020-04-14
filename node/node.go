@@ -255,6 +255,10 @@ func (n *Node) getUserProfit(ctx context.Context, u User, start, end time.Time) 
 }
 
 func (n *Node) Snapshot(ctx context.Context, label string) error {
+	// delay to create table
+	if !n.gormDB.HasTable(&types.GateBalance{}) {
+		n.gormDB.CreateTable(&types.GateBalance{})
+	}
 	for _, u := range n.config.Users {
 		select {
 		case <-ctx.Done():
@@ -278,22 +282,25 @@ func (n *Node) getUserAsset(ctx context.Context, u User) error {
 	if err != nil {
 		return err
 	}
-
-	b := types.Balance{
-		Label: u.Label,
-		SERO:  convert.StrToFloat64(balances.Available["SERO"]) + convert.StrToFloat64(balances.Locked["SERO"]),
-		USDT:  convert.StrToFloat64(balances.Available["USDT"]) + convert.StrToFloat64(balances.Locked["USDT"]),
-		GT:    convert.StrToFloat64(balances.Available["GT"]) + convert.StrToFloat64(balances.Locked["GT"]),
-		Time:  time.Now(),
-	}
-
-	coll := n.mg.Collection(n.balanceCollName(u))
-
-	if _, err := coll.InsertOne(ctx, b); err != nil {
+	seroTicker, err := client.Ticker("SERO_USDT")
+	if err != nil {
 		return err
 	}
+	gtTicker, err := client.Ticker("GT_USDT")
+	if err != nil {
+		return err
+	}
+	b := types.GateBalance{
+		Label:     u.Label,
+		SERO:      convert.StrToFloat64(balances.Available["SERO"]) + convert.StrToFloat64(balances.Locked["SERO"]),
+		USDT:      convert.StrToFloat64(balances.Available["USDT"]) + convert.StrToFloat64(balances.Locked["USDT"]),
+		GT:        convert.StrToFloat64(balances.Available["GT"]) + convert.StrToFloat64(balances.Locked["GT"]),
+		Time:      time.Now(),
+		SeroPrice: seroTicker.Last,
+		GtPrice:   gtTicker.Last,
+	}
 
-	log.Printf("%s(%s) balance: SERO %f, USDT %f, GT: %f", u.Exchange, u.Label, b.SERO, b.USDT, b.GT)
+	n.gormDB.Create(&b)
 	return nil
 }
 
