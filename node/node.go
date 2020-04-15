@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/xyths/hs/convert"
 	"github.com/xyths/qtr/exchange"
+	"github.com/xyths/qtr/exchange/huobi"
 	"github.com/xyths/qtr/gateio"
 	"github.com/xyths/qtr/grid"
 	"github.com/xyths/qtr/types"
@@ -255,10 +256,6 @@ func (n *Node) getUserProfit(ctx context.Context, u User, start, end time.Time) 
 }
 
 func (n *Node) Snapshot(ctx context.Context, label string) error {
-	// delay to create table
-	if !n.gormDB.HasTable(&types.GateBalance{}) {
-		n.gormDB.CreateTable(&types.GateBalance{})
-	}
 	for _, u := range n.config.Users {
 		select {
 		case <-ctx.Done():
@@ -266,8 +263,21 @@ func (n *Node) Snapshot(ctx context.Context, label string) error {
 			return nil
 		default:
 			if label == "" || u.Label == label {
-				if err := n.getUserAsset(ctx, u); err != nil {
-					log.Printf("error when getUserAsset: %s", err)
+				switch u.Exchange {
+				case "gate":
+					if err := n.getUserAsset(ctx, u); err != nil {
+						log.Printf("error when getUserAsset: %s", err)
+					}
+				case "huobi":
+					cfg := huobi.Config{
+						Label:        u.Label,
+						AccessKey:    u.APIKeyPair.ApiKey,
+						SecretKey:    u.APIKeyPair.SecretKey,
+						CurrencyList: []string{"btc", "usdt", "ht"},
+					}
+					hb := huobi.NewClient(cfg)
+					var balance huobi.HuobiBalance
+					_ = n.getUserAssetByEx(ctx, hb, &balance)
 				}
 			}
 		}
@@ -277,6 +287,10 @@ func (n *Node) Snapshot(ctx context.Context, label string) error {
 }
 
 func (n *Node) getUserAsset(ctx context.Context, u User) error {
+	// delay to create table
+	if !n.gormDB.HasTable(&types.GateBalance{}) {
+		n.gormDB.CreateTable(&types.GateBalance{})
+	}
 	client := gateio.NewGateIO(u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey)
 	balances, err := client.Balances()
 	if err != nil {
@@ -301,6 +315,18 @@ func (n *Node) getUserAsset(ctx context.Context, u User) error {
 	}
 
 	n.gormDB.Create(&b)
+	return nil
+}
+
+func (n *Node) getUserAssetByEx(ctx context.Context, ex exchange.Exchange, result interface{}) error {
+	if !n.gormDB.HasTable(result) {
+		n.gormDB.CreateTable(result)
+	}
+	if err := ex.Snapshot(ctx, result); err != nil {
+		log.Printf("error when snapshot: %s", err)
+		return err
+	}
+	n.gormDB.Create(result)
 	return nil
 }
 
