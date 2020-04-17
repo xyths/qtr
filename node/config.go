@@ -1,6 +1,8 @@
 package node
 
-import "github.com/xyths/qtr/gateio"
+import (
+	"github.com/xyths/qtr/exchange"
+)
 
 type MongoConf struct {
 	URI         string `json:"uri"`
@@ -11,7 +13,7 @@ type MongoConf struct {
 }
 
 type MySQLConf struct {
-	URI string `json:"uri"`
+	URI   string `json:"uri"`
 	Table string
 }
 
@@ -19,7 +21,7 @@ type User struct {
 	Exchange   string
 	Label      string
 	Pair       string // 交易对
-	APIKeyPair gateio.APIKeyPair `json:"APIKeyPair"`
+	APIKeyPair exchange.APIKeyPair `json:"APIKeyPair"`
 }
 
 type History struct {

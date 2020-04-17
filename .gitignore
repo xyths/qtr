@@ -8,8 +8,8 @@ qtr
 qtr.*
 qcandle
 qcandle.*
-qhb
-qhb.*
+wsq
+wsq.*
 
 # Test binary, built with `go test -c`
 *.test

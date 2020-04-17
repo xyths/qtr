@@ -3,6 +3,7 @@ package grid
 import (
 	"context"
 	"fmt"
+	"github.com/xyths/qtr/exchange"
 	"github.com/xyths/qtr/gateio"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -12,15 +13,11 @@ import (
 	"strconv"
 )
 
-const (
-	CollName = "grid_status"
-)
-
 type Grid struct {
 	Exchange   string
 	Label      string
 	Pair       string // 交易对
-	APIKeyPair gateio.APIKeyPair `bson:"-"`
+	APIKeyPair exchange.APIKeyPair `bson:"-"`
 
 	Percentage      float64 `bson:"-"`
 	Fund            float64 `bson:"-"`
@@ -281,8 +278,8 @@ func (g *Grid) bottom() (price, amount float64) {
 	return
 }
 
-func (g *Grid) Truncate(value float64, percision int) float64 {
-	str := fmt.Sprintf("%."+strconv.Itoa(percision)+"f", value)
+func (g *Grid) Truncate(value float64, precision int) float64 {
+	str := fmt.Sprintf("%."+strconv.Itoa(precision)+"f", value)
 	newValue, _ := strconv.ParseFloat(str, 64)
 	return newValue
 }

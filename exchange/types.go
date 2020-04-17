@@ -1,5 +1,7 @@
 package exchange
 
+import "time"
+
 type Order struct {
 	OrderNumber   uint64
 	CurrencyPair  string
@@ -40,4 +42,12 @@ type Candle struct {
 	High      float64
 	Low       float64
 	Volume    float64
+}
+
+type Balance struct {
+	Time     time.Time
+	Exchange string
+	Label    string
+	Currency string
+	Amount   float64
 }

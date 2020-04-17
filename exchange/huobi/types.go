@@ -2,6 +2,15 @@ package huobi
 
 import "time"
 
+var (
+	PricePrecision = map[string]int{
+		"btcusdt": 2,
+	}
+	AmountPrecision = map[string]int{
+		"btcusdt": 5,
+	}
+)
+
 type HuobiBalance struct {
 	Label    string
 	BTC      float64 `gorm:"Column:btc"`

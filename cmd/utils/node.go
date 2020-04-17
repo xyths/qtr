@@ -29,3 +29,10 @@ func GetNode(ctx *cli.Context) node.Node {
 	n.Init(ctx.Context, c)
 	return n
 }
+
+func GetWsNode(ctx *cli.Context) node.WsNode {
+	c := parseConfig(ctx.String(ConfigFlag.Name))
+	n := node.WsNode{}
+	n.Init(ctx.Context, c)
+	return n
+}

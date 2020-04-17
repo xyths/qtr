@@ -19,17 +19,32 @@ var (
 			utils.LabelFlag,
 		},
 	}
+	subscribeBalanceCommand = &cli.Command{
+		Action: subscribeBalance,
+		Name:   "subscribeBalance",
+		Usage:  "subscribe balance",
+		Flags: []cli.Flag{
+			utils.LabelFlag,
+		},
+	}
 )
 
 func grid(ctx *cli.Context) error {
-	n := utils.GetNode(ctx)
+	n := utils.GetWsNode(ctx)
 	defer n.Close()
 	return n.Grid(ctx.Context)
 }
 
 func snapshot(ctx *cli.Context) error {
 	label := ctx.String(utils.LabelFlag.Name)
-	n := utils.GetNode(ctx)
+	n := utils.GetWsNode(ctx)
 	defer n.Close()
 	return n.Snapshot(ctx.Context, label)
+}
+
+func subscribeBalance(ctx *cli.Context) error {
+	label := ctx.String(utils.LabelFlag.Name)
+	n := utils.GetWsNode(ctx)
+	defer n.Close()
+	return n.SubscribeBalance(ctx.Context, label)
 }

@@ -64,6 +64,7 @@ func (n *Node) Close() {
 		}
 	}
 }
+
 func (n *Node) Grid(ctx context.Context) error {
 	d, err := time.ParseDuration(n.config.Grid.Interval)
 	if err != nil {

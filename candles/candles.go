@@ -8,7 +8,7 @@ import (
 )
 
 func Pull(ex exchange.Exchange, currencyPair string, groupSec, rangeHour int) ([]exchange.Candle, error) {
-	return ex.Candles(currencyPair, groupSec, rangeHour)
+	return nil, nil
 }
 
 func Write(coll *mongo.Collection, candles []exchange.Candle) (success, fail, duplidate int, err error) {

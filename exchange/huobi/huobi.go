@@ -4,9 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/huobirdcenter/huobi_golang/config"
 	"github.com/huobirdcenter/huobi_golang/pkg/client"
+	"github.com/huobirdcenter/huobi_golang/pkg/client/accountwebsocketclient"
+	"github.com/huobirdcenter/huobi_golang/pkg/client/orderwebsocketclient"
+	"github.com/huobirdcenter/huobi_golang/pkg/client/websocketclientbase"
 	"github.com/huobirdcenter/huobi_golang/pkg/getrequest"
+	"github.com/huobirdcenter/huobi_golang/pkg/postrequest"
 	"github.com/huobirdcenter/huobi_golang/pkg/response/account"
+	"github.com/huobirdcenter/huobi_golang/pkg/response/auth"
 	"github.com/xyths/hs/convert"
 	"log"
 	"time"
@@ -25,6 +31,8 @@ type Client struct {
 	Config      Config
 	Accounts    []account.AccountInfo
 	CurrencyMap map[string]bool
+
+	orderSubscriber *orderwebsocketclient.SubscribeOrderWebSocketV2Client
 }
 
 func NewClient(config Config) *Client {
@@ -36,6 +44,14 @@ func NewClient(config Config) *Client {
 		c.CurrencyMap[currency] = true
 	}
 	return c
+}
+
+func (c *Client) ExchangeName() string {
+	return "huobi"
+}
+
+func (c *Client) Label() string {
+	return c.Config.Label
 }
 
 func (c *Client) GetTimestamp() (int, error) {
@@ -77,10 +93,10 @@ func (c *Client) Balances() (map[string]float64, error) {
 	return balances, nil
 }
 
-func (c *Client) Price(symbol string) (float64, error) {
+func (c *Client) LastPrice(symbol string) (float64, error) {
 	hb := new(client.MarketClient).Init(Host)
 	optionalRequest := getrequest.GetCandlestickOptionalRequest{Period: getrequest.MIN1, Size: 1}
-	candlesticks, err := hb.GetCandlestick(fmt.Sprintf("%susdt", symbol), optionalRequest)
+	candlesticks, err := hb.GetCandlestick(symbol, optionalRequest)
 	if err != nil {
 		return 0, err
 	}
@@ -104,16 +120,120 @@ func (c *Client) Snapshot(ctx context.Context, result interface{}) error {
 	huobiBalance.BTC = balanceMap["BTC"]
 	huobiBalance.USDT = balanceMap["USDT"]
 	huobiBalance.HT = balanceMap["HT"]
-	btcPrice, err := c.Price("btc")
+	btcPrice, err := c.LastPrice("btcusdt")
 	if err != nil {
 		return err
 	}
 	huobiBalance.BTCPrice = btcPrice
-	htPrice, err := c.Price("ht")
+	htPrice, err := c.LastPrice("htusdt")
 	if err != nil {
 		return err
 	}
 	huobiBalance.HTPrice = htPrice
 	huobiBalance.Time = time.Now()
+	return nil
+}
+
+func (c *Client) SubscribeOrders(clientId string, responseHandler websocketclientbase.ResponseHandler) error {
+	hb := new(orderwebsocketclient.SubscribeOrderWebSocketV2Client).Init(c.Config.AccessKey, c.Config.SecretKey, Host)
+	hb.SetHandler(
+		// Authentication response handler
+		func(resp *auth.WebSocketV2AuthenticationResponse) {
+			if resp.IsAuth() {
+				err := hb.Subscribe("1", clientId)
+				if err != nil {
+					log.Printf("Subscribe error: %s\n", err)
+				} else {
+					log.Println("Sent subscription")
+				}
+			} else {
+				log.Printf("Authentication error: %d\n", resp.Code)
+			}
+		},
+		responseHandler)
+	return hb.Connect(true)
+}
+
+func (c *Client) PlaceOrder(request postrequest.PlaceOrderRequest) (uint64, error) {
+	hb := new(client.OrderClient).Init(c.Config.AccessKey, c.Config.SecretKey, Host)
+
+	resp, err := hb.PlaceOrder(&request)
+	if err != nil {
+		log.Println(err)
+		return 0, err
+	}
+	switch resp.Status {
+	case "ok":
+		log.Printf("Place order successfully, order id: %s\n", resp.Data)
+		return convert.StrToUint64(resp.Data), nil
+	case "error":
+		log.Printf("Place order error: %s\n", resp.ErrorMessage)
+		return 0, errors.New(resp.ErrorMessage)
+	}
+
+	return 0, errors.New("unknown status")
+}
+
+func (c *Client) Sell(symbol string, price, amount float64) (orderId uint64, err error) {
+	request := postrequest.PlaceOrderRequest{
+		AccountId: config.AccountId,
+		Type:      "sell-limit",
+		Source:    "spot-api",
+		Symbol:    symbol,
+		Price:     fmt.Sprintf("%f", price),
+		Amount:    fmt.Sprintf("%f", amount),
+	}
+
+	return c.PlaceOrder(request)
+}
+
+func (c *Client) Buy(symbol string, price, amount float64) (orderId uint64, err error) {
+	request := postrequest.PlaceOrderRequest{
+		AccountId: config.AccountId,
+		Type:      "buy-limit",
+		Source:    "spot-api",
+		Symbol:    symbol,
+		Price:     fmt.Sprintf("%f", price),
+		Amount:    fmt.Sprintf("%f", amount),
+	}
+	return c.PlaceOrder(request)
+}
+
+func (c *Client) SubscribeBalanceUpdate(clientId string, responseHandler websocketclientbase.ResponseHandler) error {
+	hb := new(accountwebsocketclient.SubscribeAccountWebSocketV2Client).Init(c.Config.AccessKey, c.Config.SecretKey, Host)
+	hb.SetHandler(
+		// Authentication response handler
+		func(resp *auth.WebSocketV2AuthenticationResponse) {
+			if resp.IsAuth() {
+				err := hb.Subscribe("1", clientId)
+				if err != nil {
+					log.Printf("Subscribe error: %s\n", err)
+				} else {
+					log.Println("Sent subscription")
+				}
+			} else {
+				log.Printf("Authentication error: %d\n", resp.Code)
+			}
+		},
+		responseHandler)
+	return hb.Connect(true)
+}
+
+func (c *Client) CancelOrder(orderId uint64) error {
+	hb := new(client.OrderClient).Init(c.Config.AccessKey, c.Config.SecretKey, Host)
+	resp, err := hb.CancelOrderById("1")
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+	switch resp.Status {
+	case "ok":
+		log.Printf("Cancel order successfully, order id: %s\n", resp.Data)
+		return nil
+	case "error":
+		log.Printf("Cancel order error: %s\n", resp.ErrorMessage)
+		return errors.New(resp.ErrorMessage)
+	}
+
 	return nil
 }
