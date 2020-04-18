@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/huobirdcenter/huobi_golang/config"
 	"github.com/huobirdcenter/huobi_golang/pkg/client"
 	"github.com/huobirdcenter/huobi_golang/pkg/client/accountwebsocketclient"
 	"github.com/huobirdcenter/huobi_golang/pkg/client/orderwebsocketclient"
@@ -15,6 +14,7 @@ import (
 	"github.com/huobirdcenter/huobi_golang/pkg/response/auth"
 	"github.com/xyths/hs/convert"
 	"log"
+	"strconv"
 	"time"
 )
 
@@ -29,7 +29,7 @@ const Host = "api.huobi.io"
 
 type Client struct {
 	Config      Config
-	Accounts    []account.AccountInfo
+	Accounts    map[string]account.AccountInfo
 	CurrencyMap map[string]bool
 
 	orderSubscriber *orderwebsocketclient.SubscribeOrderWebSocketV2Client
@@ -42,6 +42,10 @@ func NewClient(config Config) *Client {
 	c.CurrencyMap = make(map[string]bool)
 	for _, currency := range c.Config.CurrencyList {
 		c.CurrencyMap[currency] = true
+	}
+	c.Accounts = make(map[string]account.AccountInfo)
+	if err := c.GetAccountInfo(); err != nil {
+		log.Fatal(err)
 	}
 	return c
 }
@@ -59,21 +63,22 @@ func (c *Client) GetTimestamp() (int, error) {
 	return hb.GetTimestamp()
 }
 
-func (c *Client) GetAccountInfo() ([]account.AccountInfo, error) {
+func (c *Client) GetAccountInfo() error {
 	hb := new(client.AccountClient).Init(c.Config.AccessKey, c.Config.SecretKey, Host)
-	return hb.GetAccountInfo()
+	accounts, err := hb.GetAccountInfo()
+
+	if err != nil {
+		log.Printf("error when get account info: %s", err)
+		return err
+	}
+	for _, acc := range accounts {
+		c.Accounts[acc.Type] = acc
+	}
+
+	return nil
 }
 
 func (c *Client) Balances() (map[string]float64, error) {
-	if c.Accounts == nil {
-		accounts, err := c.GetAccountInfo()
-		if err != nil {
-			log.Printf("error when get account info: %s", err)
-			return nil, err
-		}
-		c.Accounts = accounts
-
-	}
 	balances := make(map[string]float64)
 	hb := new(client.AccountClient).Init(c.Config.AccessKey, c.Config.SecretKey, Host)
 	for _, acc := range c.Accounts {
@@ -117,9 +122,9 @@ func (c *Client) Snapshot(ctx context.Context, result interface{}) error {
 		return err
 	}
 	huobiBalance.Label = c.Config.Label
-	huobiBalance.BTC = balanceMap["BTC"]
-	huobiBalance.USDT = balanceMap["USDT"]
-	huobiBalance.HT = balanceMap["HT"]
+	huobiBalance.BTC = balanceMap["btc"]
+	huobiBalance.USDT = balanceMap["usdt"]
+	huobiBalance.HT = balanceMap["ht"]
 	btcPrice, err := c.LastPrice("btcusdt")
 	if err != nil {
 		return err
@@ -154,9 +159,19 @@ func (c *Client) SubscribeOrders(clientId string, responseHandler websocketclien
 	return hb.Connect(true)
 }
 
-func (c *Client) PlaceOrder(request postrequest.PlaceOrderRequest) (uint64, error) {
+func (c *Client) PlaceOrder(orderType, symbol string, price, amount float64) (uint64, error) {
 	hb := new(client.OrderClient).Init(c.Config.AccessKey, c.Config.SecretKey, Host)
 
+	strPrice := fmt.Sprintf("%."+strconv.Itoa(PricePrecision[symbol])+"f", price)
+	strAmount := fmt.Sprintf("%."+strconv.Itoa(AmountPrecision[symbol])+"f", amount)
+	request := postrequest.PlaceOrderRequest{
+		AccountId: fmt.Sprintf("%d", c.Accounts["spot"].Id),
+		Type:      orderType,
+		Source:    "spot-api",
+		Symbol:    symbol,
+		Price:     strPrice,
+		Amount:    strAmount,
+	}
 	resp, err := hb.PlaceOrder(&request)
 	if err != nil {
 		log.Println(err)
@@ -168,6 +183,9 @@ func (c *Client) PlaceOrder(request postrequest.PlaceOrderRequest) (uint64, erro
 		return convert.StrToUint64(resp.Data), nil
 	case "error":
 		log.Printf("Place order error: %s\n", resp.ErrorMessage)
+		if resp.ErrorCode == "account-frozen-balance-insufficient-error" {
+			return 0, nil
+		}
 		return 0, errors.New(resp.ErrorMessage)
 	}
 
@@ -175,28 +193,11 @@ func (c *Client) PlaceOrder(request postrequest.PlaceOrderRequest) (uint64, erro
 }
 
 func (c *Client) Sell(symbol string, price, amount float64) (orderId uint64, err error) {
-	request := postrequest.PlaceOrderRequest{
-		AccountId: config.AccountId,
-		Type:      "sell-limit",
-		Source:    "spot-api",
-		Symbol:    symbol,
-		Price:     fmt.Sprintf("%f", price),
-		Amount:    fmt.Sprintf("%f", amount),
-	}
-
-	return c.PlaceOrder(request)
+	return c.PlaceOrder("sell-limit", symbol, price, amount)
 }
 
 func (c *Client) Buy(symbol string, price, amount float64) (orderId uint64, err error) {
-	request := postrequest.PlaceOrderRequest{
-		AccountId: config.AccountId,
-		Type:      "buy-limit",
-		Source:    "spot-api",
-		Symbol:    symbol,
-		Price:     fmt.Sprintf("%f", price),
-		Amount:    fmt.Sprintf("%f", amount),
-	}
-	return c.PlaceOrder(request)
+	return c.PlaceOrder("buy-limit", symbol, price, amount)
 }
 
 func (c *Client) SubscribeBalanceUpdate(clientId string, responseHandler websocketclientbase.ResponseHandler) error {

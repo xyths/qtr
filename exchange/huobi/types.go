@@ -9,6 +9,12 @@ var (
 	AmountPrecision = map[string]int{
 		"btcusdt": 5,
 	}
+	MinAmount = map[string]float64{
+		"btcusdt": 0.0001,
+	}
+	MinTotal = map[string]int{
+		"btcusdt": 5,
+	}
 )
 
 type HuobiBalance struct {
