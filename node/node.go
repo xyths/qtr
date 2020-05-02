@@ -447,17 +447,6 @@ func (n *Node) resetGridBase() {
 	//client := gateio.NewGateIO(u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey)
 }
 
-func isDuplicateError(err error) bool {
-	e, ok := err.(mongo.WriteException)
-	if !ok {
-		return false
-	}
-	if e.WriteConcernError == nil && len(e.WriteErrors) == 1 && e.WriteErrors[0].Code == 11000 {
-		return true
-	}
-	return false
-}
-
 func (n *Node) historyCollName(u User) string {
 	return n.config.History.Prefix + "_" + u.Exchange
 }

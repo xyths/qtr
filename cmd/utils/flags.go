@@ -10,7 +10,6 @@ var (
 		Usage:   "load configuration from `file`",
 	}
 
-
 	LabelFlag = &cli.StringFlag{
 		Name:    "label",
 		Aliases: []string{"l"},
@@ -30,10 +29,9 @@ var (
 		Usage:   "end `time` (e.g. \"2020-04-01 23:59:59\", default: now)",
 	}
 
-
 	CsvFlag = &cli.StringFlag{
-		Name:    "csv",
-		Value:   "",
-		Usage:   "write to `file`",
+		Name:  "csv",
+		Value: "",
+		Usage: "write to `file`",
 	}
 )
