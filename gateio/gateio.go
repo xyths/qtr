@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-const DefaultDataSource = "https://data.gatecn.io/api2/1"
+const DefaultDataSource = "https://gatecn.io/api2/1"
 
 type GateIO struct {
 	DataSource string
@@ -23,8 +23,8 @@ type GateIO struct {
 	Secret string
 }
 
-func NewGateIO(key, secret string) *GateIO {
-	return &GateIO{DataSource: DefaultDataSource, Key: key, Secret: secret}
+func NewGateIO(dataSource, key, secret string) *GateIO {
+	return &GateIO{DataSource: dataSource, Key: key, Secret: secret}
 }
 
 const (

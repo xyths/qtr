@@ -146,7 +146,7 @@ func (n *Node) getHistoryOnce(ctx context.Context) error {
 func (n *Node) getUserHistory(ctx context.Context, u User) error {
 	log.Printf("get history for %s-%s start now", u.Exchange, u.Label)
 
-	client := gateio.NewGateIO(u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey)
+	client := gateio.NewGateIO(u.APIKeyPair.Domain, u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey)
 	history, err := client.MyTradeHistory(strings.ToUpper(u.Pair))
 	if err != nil {
 		return err
@@ -292,7 +292,7 @@ func (n *Node) getUserAsset(ctx context.Context, u User) error {
 	if !n.gormDB.HasTable(&types.GateBalance{}) {
 		n.gormDB.CreateTable(&types.GateBalance{})
 	}
-	client := gateio.NewGateIO(u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey)
+	client := gateio.NewGateIO(u.APIKeyPair.Domain, u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey)
 	balances, err := client.Balances()
 	if err != nil {
 		return err
@@ -484,7 +484,7 @@ func (n *Node) PullCandle(ctx context.Context) error {
 		n.gormDB.CreateTable(exchange.Candle{})
 	}
 	u := n.config.Users[0]
-	client := gateio.NewGateIO(u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey)
+	client := gateio.NewGateIO(u.APIKeyPair.Domain, u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey)
 	candles, err := client.Candles(u.Pair, 60, 1)
 	if err != nil {
 		log.Printf("error when get candle data: %s", err)

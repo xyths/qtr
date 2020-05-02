@@ -178,7 +178,7 @@ func (g *Grid) down(last float64) bool {
 
 // 最后成交价格
 func (g *Grid) last() (price float64, err error) {
-	client := gateio.NewGateIO(g.APIKeyPair.ApiKey, g.APIKeyPair.SecretKey)
+	client := gateio.NewGateIO(g.APIKeyPair.Domain, g.APIKeyPair.ApiKey, g.APIKeyPair.SecretKey)
 	if ticker, err := client.Ticker(g.Pair); err != nil {
 		return price, err
 	} else {
@@ -189,7 +189,7 @@ func (g *Grid) last() (price float64, err error) {
 func (g *Grid) orderTop(last float64) {
 	price, amount := g.top()
 	price = math.Max(price, last)
-	client := gateio.NewGateIO(g.APIKeyPair.ApiKey, g.APIKeyPair.SecretKey)
+	client := gateio.NewGateIO(g.APIKeyPair.Domain, g.APIKeyPair.ApiKey, g.APIKeyPair.SecretKey)
 	res, err := client.Sell(g.Pair, price, amount)
 	if err != nil {
 		log.Printf("error when order top, price: %f, amount: %f, error: %s", price, amount, err)
@@ -202,7 +202,7 @@ func (g *Grid) orderTop(last float64) {
 func (g *Grid) orderBottom(last float64) {
 	price, amount := g.bottom()
 	price = math.Min(price, last)
-	client := gateio.NewGateIO(g.APIKeyPair.ApiKey, g.APIKeyPair.SecretKey)
+	client := gateio.NewGateIO(g.APIKeyPair.Domain, g.APIKeyPair.ApiKey, g.APIKeyPair.SecretKey)
 	res, err := client.Buy(g.Pair, price, amount)
 	if err != nil {
 		log.Printf("error when order bottom, price: %f, amount: %f, error: %s", price, amount, err)
@@ -218,7 +218,7 @@ func (g *Grid) OrderBoth(last float64) {
 }
 
 func (g *Grid) cancelOrder(orderNumber uint64) {
-	client := gateio.NewGateIO(g.APIKeyPair.ApiKey, g.APIKeyPair.SecretKey)
+	client := gateio.NewGateIO(g.APIKeyPair.Domain, g.APIKeyPair.ApiKey, g.APIKeyPair.SecretKey)
 	success, err := client.CancelOrder(g.Pair, orderNumber)
 	if err != nil {
 		log.Printf("cancel order %d error: %s", orderNumber, err)
@@ -254,7 +254,7 @@ func (g *Grid) checkBottomOrder() (string, error) {
 }
 
 func (g *Grid) checkOrder(orderNumber uint64) (string, error) {
-	client := gateio.NewGateIO(g.APIKeyPair.ApiKey, g.APIKeyPair.SecretKey)
+	client := gateio.NewGateIO(g.APIKeyPair.Domain, g.APIKeyPair.ApiKey, g.APIKeyPair.SecretKey)
 	if o, err := client.GetOrder(orderNumber, g.Pair); err != nil {
 		return "", err
 	} else {
