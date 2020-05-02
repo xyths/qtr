@@ -24,7 +24,7 @@ type GateIO struct {
 }
 
 func NewGateIO(key, secret string) *GateIO {
-	return &GateIO{Key: key, Secret: secret}
+	return &GateIO{DataSource: DefaultDataSource, Key: key, Secret: secret}
 }
 
 const (
