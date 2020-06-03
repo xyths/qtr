@@ -89,14 +89,14 @@ func (g *GateIO) Ticker(currencyPair string) (*exchange.Ticker, error) {
 		return nil, err
 	}
 	ticker := &exchange.Ticker{
-		Last:          convert.StrToFloat64(t.Last),
-		LowestAsk:     convert.StrToFloat64(t.LowestAsk),
-		HighestBid:    convert.StrToFloat64(t.HighestBid),
-		PercentChange: convert.StrToFloat64(t.PercentChange),
-		BaseVolume:    convert.StrToFloat64(t.BaseVolume),
-		QuoteVolume:   convert.StrToFloat64(t.QuoteVolume),
-		High24hr:      convert.StrToFloat64(t.High24hr),
-		Low24hr:       convert.StrToFloat64(t.Low24hr),
+		Last:          decimal.RequireFromString(t.Last),
+		LowestAsk:     decimal.RequireFromString(t.LowestAsk),
+		HighestBid:    decimal.RequireFromString(t.HighestBid),
+		PercentChange: decimal.RequireFromString(t.PercentChange),
+		BaseVolume:    decimal.RequireFromString(t.BaseVolume),
+		QuoteVolume:   decimal.RequireFromString(t.QuoteVolume),
+		High24hr:      decimal.RequireFromString(t.High24hr),
+		Low24hr:       decimal.RequireFromString(t.Low24hr),
 	}
 	return ticker, nil
 }
@@ -156,7 +156,7 @@ func (g *GateIO) TradeHistory(params string) (string, error) {
 }
 
 // Get account fund balances
-func (g *GateIO) Balances() (*ResponseBalances, error) {
+func (g *GateIO) Balances() (map[string]decimal.Decimal, error) {
 	url := "/private/balances"
 	param := ""
 	data, err := g.httpDo(POST, url, param)
@@ -164,8 +164,33 @@ func (g *GateIO) Balances() (*ResponseBalances, error) {
 		return nil, err
 	}
 	var result ResponseBalances
-	err = json.Unmarshal(data, &result)
-	return &result, err
+	if err = json.Unmarshal(data, &result); err != nil {
+		return nil, err
+	}
+	balance := make(map[string]decimal.Decimal)
+	for k, v := range result.Available {
+		b := decimal.RequireFromString(v)
+		if b.IsZero() {
+			continue
+		}
+		if ob, ok := balance[k]; ok {
+			balance[k] = ob.Add(b)
+		} else {
+			balance[k] = b
+		}
+	}
+	for k, v := range result.Locked {
+		b := decimal.RequireFromString(v)
+		if b.IsZero() {
+			continue
+		}
+		if ob, ok := balance[k]; ok {
+			balance[k] = ob.Add(b)
+		} else {
+			balance[k] = b
+		}
+	}
+	return balance, nil
 }
 
 //// get deposit address

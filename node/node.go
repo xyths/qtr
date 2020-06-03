@@ -14,7 +14,7 @@ import (
 	"github.com/xyths/qtr/exchange"
 	"github.com/xyths/qtr/exchange/huobi"
 	"github.com/xyths/qtr/gateio"
-	"github.com/xyths/qtr/grid"
+	"github.com/xyths/qtr/rest/grid"
 	"github.com/xyths/qtr/types"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -29,7 +29,7 @@ type Node struct {
 	config Config
 	mg     *mongo.Database
 	gormDB *gorm.DB
-	grids  []grid.Grid
+	grids  []grid.RestGridTrader
 }
 
 func New(configFilename string) *Node {
@@ -107,8 +107,8 @@ func (n *Node) doGridOnce(ctx context.Context) error {
 			log.Println(ctx.Err())
 			return nil
 		default:
-			if err := n.grids[i].DoWork(ctx); err != nil {
-				log.Printf("error when DoWork: %s", err)
+			if err := n.grids[i].Start(ctx); err != nil {
+				log.Printf("error when Start: %s", err)
 			}
 		}
 	}
@@ -305,30 +305,30 @@ func (n *Node) getUserAsset(ctx context.Context, u User) error {
 	if !n.gormDB.HasTable(&types.GateBalance{}) {
 		n.gormDB.CreateTable(&types.GateBalance{})
 	}
-	client := gateio.New(u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey, "gatecn.io")
-	balances, err := client.Balances()
-	if err != nil {
-		return err
-	}
-	seroTicker, err := client.Ticker("SERO_USDT")
-	if err != nil {
-		return err
-	}
-	gtTicker, err := client.Ticker("GT_USDT")
-	if err != nil {
-		return err
-	}
-	b := types.GateBalance{
-		Label:     u.Label,
-		SERO:      convert.StrToFloat64(balances.Available["SERO"]) + convert.StrToFloat64(balances.Locked["SERO"]),
-		USDT:      convert.StrToFloat64(balances.Available["USDT"]) + convert.StrToFloat64(balances.Locked["USDT"]),
-		GT:        convert.StrToFloat64(balances.Available["GT"]) + convert.StrToFloat64(balances.Locked["GT"]),
-		Time:      time.Now(),
-		SeroPrice: seroTicker.Last,
-		GtPrice:   gtTicker.Last,
-	}
+	//client := gateio.New(u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey, "gatecn.io")
+	//balances, err := client.Balances()
+	//if err != nil {
+	//	return err
+	//}
+	//seroTicker, err := client.Ticker("SERO_USDT")
+	//if err != nil {
+	//	return err
+	//}
+	//gtTicker, err := client.Ticker("GT_USDT")
+	//if err != nil {
+	//	return err
+	//}
+	//b := types.GateBalance{
+	//	Label:     u.Label,
+	//	SERO:      convert.StrToFloat64(balances.Available["SERO"]) + convert.StrToFloat64(balances.Locked["SERO"]),
+	//	USDT:      convert.StrToFloat64(balances.Available["USDT"]) + convert.StrToFloat64(balances.Locked["USDT"]),
+	//	GT:        convert.StrToFloat64(balances.Available["GT"]) + convert.StrToFloat64(balances.Locked["GT"]),
+	//	Time:      time.Now(),
+	//	//SeroPrice: seroTicker.Last,
+	//	//GtPrice:   gtTicker.Last,
+	//}
 
-	n.gormDB.Create(&b)
+	//n.gormDB.Create(&b)
 	return nil
 }
 
@@ -434,26 +434,27 @@ func (n *Node) getUserTrades(ctx context.Context, u User, start, end time.Time) 
 func (n *Node) initGrid(ctx context.Context) {
 	// init exchange before grid
 	for _, u := range n.config.Users {
-		exApi := n.initExAPI(u)
-		g := grid.Grid{
+		//exApi := n.initExAPI(u)
+		_ = u
+		g := grid.RestGridTrader{
 			//Exchange: u.Exchange,
 			//Label:    u.Label,
-			//Pair:     u.Pair,
-			ExAPI: exApi,
-
-			Percentage: n.config.Grid.Percentage,
-			Fund:       n.config.Grid.Fund,
-			MaxGrid:    n.config.Grid.MaxGrid,
+			//Symbol:     u.Symbol,
+			//ExAPI: exApi,
+			//
+			//Percentage: n.config.Grid.Percentage,
+			//Fund:       n.config.Grid.Fund,
+			//MaxGrid:    n.config.Grid.MaxGrid,
 
 			//PricePrecision:  u.PricePrecision,
 			//AmountPrecision: u.AmountPrecision,
 			//MinAmount:       u.MinAmount,
 
-			DB: n.mg,
+			//db: n.mg,
 		}
-		if err := g.Load(ctx); err != nil {
-			log.Fatalf("error when load grid: %s", err)
-		}
+		//if err := g.Load(ctx); err != nil {
+		//	log.Fatalf("error when load grid: %s", err)
+		//}
 		n.grids = append(n.grids, g)
 	}
 }

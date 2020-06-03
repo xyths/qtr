@@ -4,6 +4,11 @@ const (
 	BTC3L_USDT = "btc3l_usdt"
 	BTC3S_USDT = "btc3s_usdt"
 	SERO_USDT  = "sero_usdt"
+
+	BTC3L = "BTC3L"
+	BTC3S = "BTC3S"
+	USDT  = "USDT"
+	SERO  = "SERO"
 )
 
 var (

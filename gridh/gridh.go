@@ -139,13 +139,13 @@ func (t *Trader) initGrids(ctx context.Context) {
 	}
 	if ticker, err := t.ex.Ticker(t.longSymbol); err == nil {
 		Sugar.Infof("%s last price: %f", t.longSymbol, ticker.Last)
-		t.longGrids, t.longBase = t.initOneGrids(decimal.NewFromFloat(ticker.Last))
+		t.longGrids, t.longBase = t.initOneGrids(ticker.Last)
 	} else {
 		Sugar.Fatalf("error when get ticker: %s", err)
 	}
 	if ticker, err := t.ex.Ticker(t.shortSymbol); err == nil {
 		Sugar.Infof("%s last price: %f", t.shortSymbol, ticker.Last)
-		t.shortGrids, t.shortBase = t.initOneGrids(decimal.NewFromFloat(ticker.Last))
+		t.shortGrids, t.shortBase = t.initOneGrids(ticker.Last)
 	} else {
 		Sugar.Fatalf("error when get ticker: %s", err)
 	}
@@ -298,7 +298,7 @@ func (t *Trader) rebalanceOneSide(ctx context.Context, symbol string, base int, 
 			if err != nil {
 				Sugar.Errorf("get ticker error: %s", err)
 			}
-			last := decimal.NewFromFloat(ticker.Last)
+			last := ticker.Last
 			placeAmount := amount.Sub(filledAmount)
 			clientOrderId := fmt.Sprintf("p-%d", times)
 			Sugar.Debugw("try place order",

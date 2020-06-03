@@ -3,7 +3,7 @@ package grid
 import "testing"
 
 func TestGrid_Up(t *testing.T) {
-	g := Grid{
+	g := RestGridTrader{
 		Percentage:      0.01,
 		Fund:            100,
 		PricePrecision:  5,

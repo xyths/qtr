@@ -28,14 +28,14 @@ type Order struct {
 }
 
 type Ticker struct {
-	Last          float64 // 最新成交价
-	LowestAsk     float64 // 卖1，卖方最低价
-	HighestBid    float64 // 买1，买方最高价
-	PercentChange float64 // 涨跌百分比
-	BaseVolume    float64 // 交易量
-	QuoteVolume   float64 // 兑换货币交易量
-	High24hr      float64 // 24小时最高价
-	Low24hr       float64 // 24小时最低价
+	Last          decimal.Decimal // 最新成交价
+	LowestAsk     decimal.Decimal // 卖1，卖方最低价
+	HighestBid    decimal.Decimal // 买1，买方最高价
+	PercentChange decimal.Decimal // 涨跌百分比
+	BaseVolume    decimal.Decimal // 交易量
+	QuoteVolume   decimal.Decimal // 兑换货币交易量
+	High24hr      decimal.Decimal // 24小时最高价
+	Low24hr       decimal.Decimal // 24小时最低价
 }
 
 type Candle struct {
