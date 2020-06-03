@@ -81,6 +81,9 @@ func (r *RestGridTrader) initEx(ctx context.Context) {
 }
 
 func (r *RestGridTrader) initGrids(ctx context.Context) {
+	if r.loadGrids(ctx) {
+		return
+	}
 	maxPrice := r.config.Strategy.MaxPrice
 	minPrice := r.config.Strategy.MinPrice
 	number := r.config.Strategy.Number
