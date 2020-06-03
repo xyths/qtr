@@ -6,7 +6,10 @@ import (
 	"fmt"
 	"github.com/jinzhu/gorm"
 	_ "github.com/jinzhu/gorm/dialects/mysql"
+	"github.com/nntaoli-project/goex"
+	"github.com/nntaoli-project/goex/builder"
 	"github.com/pkg/errors"
+	"github.com/xyths/hs"
 	"github.com/xyths/hs/convert"
 	"github.com/xyths/qtr/exchange"
 	"github.com/xyths/qtr/exchange/huobi"
@@ -29,8 +32,17 @@ type Node struct {
 	grids  []grid.Grid
 }
 
-func (n *Node) Init(ctx context.Context, cfg Config) {
-	n.config = cfg
+func New(configFilename string) *Node {
+	cfg := Config{}
+	if err := hs.ParseJsonConfig(configFilename, &cfg); err != nil {
+		log.Fatal(err)
+	}
+	return &Node{
+		config: cfg,
+	}
+}
+
+func (n *Node) Init(ctx context.Context) {
 	n.initMongo(ctx)
 	n.initMySQL(ctx)
 }
@@ -146,7 +158,7 @@ func (n *Node) getHistoryOnce(ctx context.Context) error {
 func (n *Node) getUserHistory(ctx context.Context, u User) error {
 	log.Printf("get history for %s-%s start now", u.Exchange, u.Label)
 
-	client := gateio.NewGateIO(u.APIKeyPair.Domain, u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey)
+	client := gateio.New(u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey, "gatecn.io")
 	history, err := client.MyTradeHistory(strings.ToUpper(u.Pair))
 	if err != nil {
 		return err
@@ -275,6 +287,7 @@ func (n *Node) Snapshot(ctx context.Context, label string) error {
 						AccessKey:    u.APIKeyPair.ApiKey,
 						SecretKey:    u.APIKeyPair.SecretKey,
 						CurrencyList: []string{"btc", "usdt", "ht"},
+						Host:         u.APIKeyPair.Domain,
 					}
 					hb := huobi.NewClient(cfg)
 					var balance huobi.HuobiBalance
@@ -292,7 +305,7 @@ func (n *Node) getUserAsset(ctx context.Context, u User) error {
 	if !n.gormDB.HasTable(&types.GateBalance{}) {
 		n.gormDB.CreateTable(&types.GateBalance{})
 	}
-	client := gateio.NewGateIO(u.APIKeyPair.Domain, u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey)
+	client := gateio.New(u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey, "gatecn.io")
 	balances, err := client.Balances()
 	if err != nil {
 		return err
@@ -419,19 +432,22 @@ func (n *Node) getUserTrades(ctx context.Context, u User, start, end time.Time) 
 }
 
 func (n *Node) initGrid(ctx context.Context) {
+	// init exchange before grid
 	for _, u := range n.config.Users {
+		exApi := n.initExAPI(u)
 		g := grid.Grid{
-			Exchange:   u.Exchange,
-			Label:      u.Label,
-			Pair:       u.Pair,
-			APIKeyPair: u.APIKeyPair,
+			//Exchange: u.Exchange,
+			//Label:    u.Label,
+			//Pair:     u.Pair,
+			ExAPI: exApi,
 
 			Percentage: n.config.Grid.Percentage,
 			Fund:       n.config.Grid.Fund,
 			MaxGrid:    n.config.Grid.MaxGrid,
 
-			PricePrecision:  gateio.PricePercision,
-			AmountPrecision: gateio.AmountPercision,
+			//PricePrecision:  u.PricePrecision,
+			//AmountPrecision: u.AmountPrecision,
+			//MinAmount:       u.MinAmount,
 
 			DB: n.mg,
 		}
@@ -444,7 +460,7 @@ func (n *Node) initGrid(ctx context.Context) {
 
 func (n *Node) resetGridBase() {
 	// use ticker.Last to set base
-	//client := gateio.NewGateIO(u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey)
+	//client := gateio.New(u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey)
 }
 
 func (n *Node) historyCollName(u User) string {
@@ -484,7 +500,7 @@ func (n *Node) PullCandle(ctx context.Context) error {
 		n.gormDB.CreateTable(exchange.Candle{})
 	}
 	u := n.config.Users[0]
-	client := gateio.NewGateIO(u.APIKeyPair.Domain, u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey)
+	client := gateio.New(u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey, "gatecn.io")
 	candles, err := client.Candles(u.Pair, 60, 1)
 	if err != nil {
 		log.Printf("error when get candle data: %s", err)
@@ -503,4 +519,23 @@ func (n *Node) PullCandle(ctx context.Context) error {
 	}
 	log.Printf("[INFO] download record success %d, duplicate %d", success, duplicate)
 	return nil
+}
+
+func (n *Node) TestGridConfig() {
+
+}
+
+func (n *Node) initExAPI(u User) goex.API {
+	apiBuilder := builder.NewAPIBuilder().HttpTimeout(5 * time.Second)
+	api := apiBuilder.APIKey(u.APIKeyPair.ApiKey).APISecretkey(u.APIKeyPair.SecretKey)
+	switch u.Exchange {
+	case "gate":
+		return api.Build(goex.GATEIO)
+	case "okex":
+		return api.ApiPassphrase(u.APIKeyPair.PassPhrase).Build(goex.OKEX_V3)
+	case "huobi":
+		return api.Build(goex.HUOBI_PRO)
+	default:
+		return nil
+	}
 }

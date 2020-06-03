@@ -1,10 +1,5 @@
 package gateio
 
-const (
-	PricePercision  = 5
-	AmountPercision = 3
-)
-
 // from api result
 type RawTrade struct {
 	TradeId     uint64  `json:"tradeID"`
@@ -78,27 +73,18 @@ type ResponseCancel struct {
 	Message string
 }
 
-const (
-	OrderStatusOpen      = "open"
-	OrderStatusCancelled = "cancelled"
-	OrderStatusClosed    = "closed"
-
-	OrderTypeBuy  = "buy"
-	OrderTypeSell = "sell"
-)
-
 type RawOrderInGetOrder struct {
 	OrderNumber  string
 	Status       string // 订单状态 open已挂单 cancelled已取消 closed已完成
 	CurrencyPair string
 	Type         string
 
-	Rate          string      // 价格
-	Amount        string      // 买卖数量
-	InitialRate   string      // 下单价格
-	InitialAmount string      // 下单数量
-	FilledRate    interface{} // string when open, float64 when closed
-	FilledAmount  string
+	Rate          string // 价格
+	Amount        string // 买卖数量
+	InitialRate   string // 下单价格
+	InitialAmount string // 下单数量
+	//FilledRate    interface{} // string when open, float64 when closed
+	FilledAmount string
 
 	FeePercentage float64
 	FeeValue      string

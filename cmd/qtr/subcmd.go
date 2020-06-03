@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/urfave/cli/v2"
 	"github.com/xyths/qtr/cmd/utils"
+	"github.com/xyths/qtr/node"
 )
 
 var (
@@ -76,7 +77,9 @@ func profit(ctx *cli.Context) error {
 
 func snapshot(ctx *cli.Context) error {
 	label := ctx.String(utils.LabelFlag.Name)
-	n := utils.GetNode(ctx)
+	cfg := ctx.String(utils.ConfigFlag.Name)
+	n := node.New(cfg)
+	n.Init(ctx.Context)
 	defer n.Close()
 	return n.Snapshot(ctx.Context, label)
 }

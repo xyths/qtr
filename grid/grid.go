@@ -3,6 +3,8 @@ package grid
 import (
 	"context"
 	"fmt"
+	"github.com/nntaoli-project/goex"
+	"github.com/shopspring/decimal"
 	"github.com/xyths/qtr/exchange"
 	"github.com/xyths/qtr/gateio"
 	"go.mongodb.org/mongo-driver/bson"
@@ -13,17 +15,28 @@ import (
 	"strconv"
 )
 
-type Grid struct {
-	Exchange   string
-	Label      string
-	Pair       string // 交易对
-	APIKeyPair exchange.APIKeyPair `bson:"-"`
+type Config struct {
+	Exchange string
+	Label    string
+	Pair     string // 交易对
 
-	Percentage      float64 `bson:"-"`
-	Fund            float64 `bson:"-"`
-	MaxGrid         int     `bson:"-"`
-	PricePrecision  int     `bson:"-"`
-	AmountPrecision int     `bson:"-"`
+	PricePrecision  int
+	AmountPrecision int
+	MinAmount       float64
+
+	HighestPrice  float64
+	LowestPrice   float64
+	NumberOfGrids uint64
+}
+
+type Grid struct {
+	Config
+	ExAPI      goex.API
+	APIKeyPair exchange.APIKeyPair
+
+	Percentage float64 `bson:"-"`
+	Fund       float64 `bson:"-"`
+	MaxGrid    int     `bson:"-"`
 
 	DB *mongo.Database `bson:"-"`
 
@@ -178,7 +191,7 @@ func (g *Grid) down(last float64) bool {
 
 // 最后成交价格
 func (g *Grid) last() (price float64, err error) {
-	client := gateio.NewGateIO(g.APIKeyPair.Domain, g.APIKeyPair.ApiKey, g.APIKeyPair.SecretKey)
+	client := gateio.New(g.APIKeyPair.ApiKey, g.APIKeyPair.SecretKey, "gatecn.io")
 	if ticker, err := client.Ticker(g.Pair); err != nil {
 		return price, err
 	} else {
@@ -189,26 +202,26 @@ func (g *Grid) last() (price float64, err error) {
 func (g *Grid) orderTop(last float64) {
 	price, amount := g.top()
 	price = math.Max(price, last)
-	client := gateio.NewGateIO(g.APIKeyPair.Domain, g.APIKeyPair.ApiKey, g.APIKeyPair.SecretKey)
-	res, err := client.Sell(g.Pair, price, amount)
+	client := gateio.New(g.APIKeyPair.ApiKey, g.APIKeyPair.SecretKey, "gatecn.io")
+	orderId, err := client.Sell(g.Pair, decimal.NewFromFloat(price), decimal.NewFromFloat(amount), gateio.OrderTypeNormal, "top")
 	if err != nil {
 		log.Printf("error when order top, price: %f, amount: %f, error: %s", price, amount, err)
 		return
 	}
-	g.TopOrderId = res.OrderNumber
+	g.TopOrderId = orderId
 	log.Printf("[INFO] orderTop: price %f, amount %f, orderNumber %d", price, amount, g.TopOrderId)
 }
 
 func (g *Grid) orderBottom(last float64) {
 	price, amount := g.bottom()
 	price = math.Min(price, last)
-	client := gateio.NewGateIO(g.APIKeyPair.Domain, g.APIKeyPair.ApiKey, g.APIKeyPair.SecretKey)
-	res, err := client.Buy(g.Pair, price, amount)
+	client := gateio.New(g.APIKeyPair.ApiKey, g.APIKeyPair.SecretKey, "gatecn.io")
+	orderId, err := client.Buy(g.Pair, decimal.NewFromFloat(price), decimal.NewFromFloat(amount), gateio.OrderTypeNormal, "bottom")
 	if err != nil {
 		log.Printf("error when order bottom, price: %f, amount: %f, error: %s", price, amount, err)
 		return
 	}
-	g.BottomOrderId = res.OrderNumber
+	g.BottomOrderId = orderId
 	log.Printf("[INFO] orderBottom: price %f, amount %f, orderNumber %d", price, amount, g.TopOrderId)
 }
 
@@ -218,7 +231,7 @@ func (g *Grid) OrderBoth(last float64) {
 }
 
 func (g *Grid) cancelOrder(orderNumber uint64) {
-	client := gateio.NewGateIO(g.APIKeyPair.Domain, g.APIKeyPair.ApiKey, g.APIKeyPair.SecretKey)
+	client := gateio.New(g.APIKeyPair.ApiKey, g.APIKeyPair.SecretKey, "gatecn.io")
 	success, err := client.CancelOrder(g.Pair, orderNumber)
 	if err != nil {
 		log.Printf("cancel order %d error: %s", orderNumber, err)
@@ -254,7 +267,7 @@ func (g *Grid) checkBottomOrder() (string, error) {
 }
 
 func (g *Grid) checkOrder(orderNumber uint64) (string, error) {
-	client := gateio.NewGateIO(g.APIKeyPair.Domain, g.APIKeyPair.ApiKey, g.APIKeyPair.SecretKey)
+	client := gateio.New(g.APIKeyPair.ApiKey, g.APIKeyPair.SecretKey, "gatecn.io")
 	if o, err := client.GetOrder(orderNumber, g.Pair); err != nil {
 		return "", err
 	} else {

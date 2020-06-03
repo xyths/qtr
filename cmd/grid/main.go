@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/urfave/cli/v2"
 	"github.com/xyths/qtr/cmd/utils"
+	"log"
 	"os"
 	"path/filepath"
 )
@@ -11,17 +12,20 @@ import (
 var app *cli.App
 
 func init() {
+	log.SetFlags(log.Ldate | log.Ltime)
+
 	app = &cli.App{
 		Name:    filepath.Base(os.Args[0]),
-		Usage:   "the quantitative trading robot",
-		Version: "0.7.0",
+		Usage:   "the grid trading robot using RESTful API",
+		Version: "0.1.0",
+		Action:  th,
 	}
 
 	app.Commands = []*cli.Command{
-		gridCommand,
-		historyCommand,
-		profitCommand,
-		snapshotCommand,
+		thCommand,
+		//historyCommand,
+		//profitCommand,
+		//snapshotCommand,
 	}
 	app.Flags = []cli.Flag{
 		utils.ConfigFlag,

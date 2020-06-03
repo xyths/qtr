@@ -34,4 +34,10 @@ var (
 		Value: "",
 		Usage: "write to `file`",
 	}
+	TestConfigFlag = &cli.BoolFlag{
+		Name:    "test",
+		Aliases: []string{"t"},
+		Value:   false,
+		Usage:   "do not run, just test config file",
+	}
 )

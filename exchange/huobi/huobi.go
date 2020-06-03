@@ -5,14 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/huobirdcenter/huobi_golang/pkg/client"
-	"github.com/huobirdcenter/huobi_golang/pkg/client/accountwebsocketclient"
 	"github.com/huobirdcenter/huobi_golang/pkg/client/orderwebsocketclient"
 	"github.com/huobirdcenter/huobi_golang/pkg/client/websocketclientbase"
 	"github.com/huobirdcenter/huobi_golang/pkg/getrequest"
 	"github.com/huobirdcenter/huobi_golang/pkg/postrequest"
 	"github.com/huobirdcenter/huobi_golang/pkg/response/account"
-	"github.com/huobirdcenter/huobi_golang/pkg/response/auth"
 	"github.com/xyths/hs/convert"
+	"github.com/xyths/hs/exchange/huobi"
 	"log"
 	"strconv"
 	"time"
@@ -23,9 +22,10 @@ type Config struct {
 	AccessKey    string
 	SecretKey    string
 	CurrencyList []string
+	Host         string
 }
 
-const Host = "api.huobi.io"
+const DefaultHost = "api.huobi.io"
 
 type Client struct {
 	Config      Config
@@ -38,6 +38,9 @@ type Client struct {
 func NewClient(config Config) *Client {
 	c := &Client{
 		Config: config,
+	}
+	if config.Host == "" {
+		c.Config.Host = huobi.DefaultHost
 	}
 	c.CurrencyMap = make(map[string]bool)
 	for _, currency := range c.Config.CurrencyList {
@@ -59,12 +62,12 @@ func (c *Client) Label() string {
 }
 
 func (c *Client) GetTimestamp() (int, error) {
-	hb := new(client.CommonClient).Init(Host)
+	hb := new(client.CommonClient).Init(c.Config.Host)
 	return hb.GetTimestamp()
 }
 
 func (c *Client) GetAccountInfo() error {
-	hb := new(client.AccountClient).Init(c.Config.AccessKey, c.Config.SecretKey, Host)
+	hb := new(client.AccountClient).Init(c.Config.AccessKey, c.Config.SecretKey, c.Config.Host)
 	accounts, err := hb.GetAccountInfo()
 
 	if err != nil {
@@ -80,7 +83,7 @@ func (c *Client) GetAccountInfo() error {
 
 func (c *Client) Balances() (map[string]float64, error) {
 	balances := make(map[string]float64)
-	hb := new(client.AccountClient).Init(c.Config.AccessKey, c.Config.SecretKey, Host)
+	hb := new(client.AccountClient).Init(c.Config.AccessKey, c.Config.SecretKey, c.Config.Host)
 	for _, acc := range c.Accounts {
 		ab, err := hb.GetAccountBalance(fmt.Sprintf("%d", acc.Id))
 		if err != nil {
@@ -99,7 +102,7 @@ func (c *Client) Balances() (map[string]float64, error) {
 }
 
 func (c *Client) LastPrice(symbol string) (float64, error) {
-	hb := new(client.MarketClient).Init(Host)
+	hb := new(client.MarketClient).Init(c.Config.Host)
 	optionalRequest := getrequest.GetCandlestickOptionalRequest{Period: getrequest.MIN1, Size: 1}
 	candlesticks, err := hb.GetCandlestick(symbol, optionalRequest)
 	if err != nil {
@@ -140,27 +143,28 @@ func (c *Client) Snapshot(ctx context.Context, result interface{}) error {
 }
 
 func (c *Client) SubscribeOrders(clientId string, responseHandler websocketclientbase.ResponseHandler) error {
-	hb := new(orderwebsocketclient.SubscribeOrderWebSocketV2Client).Init(c.Config.AccessKey, c.Config.SecretKey, Host)
-	hb.SetHandler(
-		// Authentication response handler
-		func(resp *auth.WebSocketV2AuthenticationResponse) {
-			if resp.IsAuth() {
-				err := hb.Subscribe("1", clientId)
-				if err != nil {
-					log.Printf("Subscribe error: %s\n", err)
-				} else {
-					log.Println("Sent subscription")
-				}
-			} else {
-				log.Printf("Authentication error: %d\n", resp.Code)
-			}
-		},
-		responseHandler)
-	return hb.Connect(true)
+	//hb := new(orderwebsocketclient.SubscribeOrderWebSocketV2Client).Init(c.Config.AccessKey, c.Config.SecretKey, Host)
+	//hb.SetHandler(
+	//	// Authentication response handler
+	//	func(resp *auth.WebSocketV2AuthenticationResponse) {
+	//		if resp.IsAuth() {
+	//			err := hb.Subscribe("1", clientId)
+	//			if err != nil {
+	//				log.Printf("Subscribe error: %s\n", err)
+	//			} else {
+	//				log.Println("Sent subscription")
+	//			}
+	//		} else {
+	//			log.Printf("Authentication error: %d\n", resp.Code)
+	//		}
+	//	},
+	//	responseHandler)
+	//return hb.Connect(true)
+	return nil
 }
 
 func (c *Client) PlaceOrder(orderType, symbol string, price, amount float64) (uint64, error) {
-	hb := new(client.OrderClient).Init(c.Config.AccessKey, c.Config.SecretKey, Host)
+	hb := new(client.OrderClient).Init(c.Config.AccessKey, c.Config.SecretKey, c.Config.Host)
 
 	strPrice := fmt.Sprintf("%."+strconv.Itoa(PricePrecision[symbol])+"f", price)
 	strAmount := fmt.Sprintf("%."+strconv.Itoa(AmountPrecision[symbol])+"f", amount)
@@ -201,27 +205,28 @@ func (c *Client) Buy(symbol string, price, amount float64) (orderId uint64, err 
 }
 
 func (c *Client) SubscribeBalanceUpdate(clientId string, responseHandler websocketclientbase.ResponseHandler) error {
-	hb := new(accountwebsocketclient.SubscribeAccountWebSocketV2Client).Init(c.Config.AccessKey, c.Config.SecretKey, Host)
-	hb.SetHandler(
-		// Authentication response handler
-		func(resp *auth.WebSocketV2AuthenticationResponse) {
-			if resp.IsAuth() {
-				err := hb.Subscribe("1", clientId)
-				if err != nil {
-					log.Printf("Subscribe error: %s\n", err)
-				} else {
-					log.Println("Sent subscription")
-				}
-			} else {
-				log.Printf("Authentication error: %d\n", resp.Code)
-			}
-		},
-		responseHandler)
-	return hb.Connect(true)
+	//hb := new(accountwebsocketclient.SubscribeAccountWebSocketV2Client).Init(c.Config.AccessKey, c.Config.SecretKey, Host)
+	//hb.SetHandler(
+	//	// Authentication response handler
+	//	func(resp *auth.WebSocketV2AuthenticationResponse) {
+	//		if resp.IsAuth() {
+	//			err := hb.Subscribe("1", clientId)
+	//			if err != nil {
+	//				log.Printf("Subscribe error: %s\n", err)
+	//			} else {
+	//				log.Println("Sent subscription")
+	//			}
+	//		} else {
+	//			log.Printf("Authentication error: %d\n", resp.Code)
+	//		}
+	//	},
+	//	responseHandler)
+	//return hb.Connect(true)
+	return nil
 }
 
 func (c *Client) CancelOrder(orderId uint64) error {
-	hb := new(client.OrderClient).Init(c.Config.AccessKey, c.Config.SecretKey, Host)
+	hb := new(client.OrderClient).Init(c.Config.AccessKey, c.Config.SecretKey, c.Config.Host)
 	resp, err := hb.CancelOrderById("1")
 	if err != nil {
 		log.Println(err)

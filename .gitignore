@@ -10,6 +10,8 @@ qcandle
 qcandle.*
 wsq
 wsq.*
+qsnap.*
+grid_linux.*
 
 # Test binary, built with `go test -c`
 *.test

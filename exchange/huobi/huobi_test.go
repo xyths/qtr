@@ -21,12 +21,12 @@ func TestClient_GetAccountInfo(t *testing.T) {
 		AccessKey: os.Getenv("ACCESS_KEY"),
 		SecretKey: os.Getenv("SECRET_KEY"),
 	})
-	accounts, err := client.GetAccountInfo();
+	err := client.GetAccountInfo();
 	if err != nil {
 		t.Log(err)
 	}
 
-	for _, a := range accounts {
+	for _, a := range client.Accounts {
 		t.Logf("account is: %#v", a)
 	}
 }

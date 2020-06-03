@@ -25,8 +25,9 @@ func parseConfig(filename string) (c node.Config) {
 
 func GetNode(ctx *cli.Context) node.Node {
 	c := parseConfig(ctx.String(ConfigFlag.Name))
+	_ = c
 	n := node.Node{}
-	n.Init(ctx.Context, c)
+	n.Init(ctx.Context)
 	return n
 }
 

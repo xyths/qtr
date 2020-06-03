@@ -18,9 +18,14 @@ type MySQLConf struct {
 }
 
 type User struct {
-	Exchange   string
-	Label      string
-	Pair       string // 交易对
+	Exchange string
+	Label    string
+	Pair     string // 交易对
+
+	PricePrecision  int     `json:"pricePrecision"`
+	AmountPrecision int     `json:"amountPrecision"`
+	MinAmount       float64 `json:"minAmount"`
+
 	APIKeyPair exchange.APIKeyPair `json:"APIKeyPair"`
 }
 

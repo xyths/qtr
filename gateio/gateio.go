@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/pkg/errors"
+	"github.com/shopspring/decimal"
 	"github.com/xyths/hs/convert"
 	"github.com/xyths/qtr/exchange"
 	"io/ioutil"
@@ -14,17 +15,26 @@ import (
 	"strings"
 )
 
-const DefaultDataSource = "https://gatecn.io/api2/1"
+const (
+	DefaultHost = "gateio.life"
+)
 
 type GateIO struct {
-	DataSource string
-
 	Key    string
 	Secret string
+
+	publicBaseUrl  string
+	privateBaseUrl string
 }
 
-func NewGateIO(dataSource, key, secret string) *GateIO {
-	return &GateIO{DataSource: dataSource, Key: key, Secret: secret}
+func New(key, secret, host string) *GateIO {
+	g := &GateIO{Key: key, Secret: secret}
+	if host == "" {
+		host = DefaultHost
+	}
+	g.publicBaseUrl = "https://data." + host + "/api2/1"
+	g.privateBaseUrl = "https://api." + host + "/api2/1"
+	return g
 }
 
 const (
@@ -34,7 +44,7 @@ const (
 
 // all support pairs
 func (g *GateIO) GetPairs() (string, error) {
-	url := g.DataSource + "/pairs"
+	url := "/pairs"
 	param := ""
 	if ret, err := g.httpDo(GET, url, param); err != nil {
 		return "", err
@@ -46,7 +56,7 @@ func (g *GateIO) GetPairs() (string, error) {
 // Market Info
 //func (g *GateIO) marketinfo() string {
 //	var method string = "GET"
-//	url := g.DataSource + "/marketinfo"
+//	url :=  "/marketinfo"
 //	param := ""
 //	var ret string = g.httpDo(method, url, param)
 //	return ret
@@ -55,7 +65,7 @@ func (g *GateIO) GetPairs() (string, error) {
 //// Market Details
 //func (g *GateIO) marketlist() string {
 //	var method string = "GET"
-//	url := g.DataSource + "/marketlist"
+//	url := "/marketlist"
 //	param := ""
 //	var ret string = g.httpDo(method, url, param)
 //	return ret
@@ -64,21 +74,21 @@ func (g *GateIO) GetPairs() (string, error) {
 //// tickers
 //func (g *GateIO) tickers() string {
 //	var method string = "GET"
-//	url := g.DataSource + "/tickers"
+//	url := "/tickers"
 //	param := ""
 //	var ret string = g.httpDo(method, url, param)
 //	return ret
 //}
 //
 // ticker
-func (g *GateIO) Ticker(currencyPair string) (ticker *exchange.Ticker, err error) {
-	url := g.DataSource + "/ticker" + "/" + currencyPair
+func (g *GateIO) Ticker(currencyPair string) (*exchange.Ticker, error) {
+	url := "/ticker" + "/" + currencyPair
 	param := ""
 	var t ResponseTicker
-	if err = g.request(GET, url, param, &t); err != nil {
-		return
+	if err := g.request(GET, url, param, &t); err != nil {
+		return nil, err
 	}
-	ticker = &exchange.Ticker{
+	ticker := &exchange.Ticker{
 		Last:          convert.StrToFloat64(t.Last),
 		LowestAsk:     convert.StrToFloat64(t.LowestAsk),
 		HighestBid:    convert.StrToFloat64(t.HighestBid),
@@ -88,13 +98,13 @@ func (g *GateIO) Ticker(currencyPair string) (ticker *exchange.Ticker, err error
 		High24hr:      convert.StrToFloat64(t.High24hr),
 		Low24hr:       convert.StrToFloat64(t.Low24hr),
 	}
-	return
+	return ticker, nil
 }
 
 //// Depth
 //func (g *GateIO) orderBooks() string {
 //	var method string = "GET"
-//	url := g.DataSource + "/orderBooks"
+//	url := "/orderBooks"
 //	param := ""
 //	var ret string = g.httpDo(method, url, param)
 //	return ret
@@ -103,7 +113,7 @@ func (g *GateIO) Ticker(currencyPair string) (ticker *exchange.Ticker, err error
 //// Depth of pair
 //func (g *GateIO) orderBook(params string) string {
 //	var method string = "GET"
-//	url := g.DataSource + "/orderBook/" + params
+//	url := "/orderBook/" + params
 //	param := ""
 //	var ret string = g.httpDo(method, url, param)
 //	return ret
@@ -112,7 +122,7 @@ func (g *GateIO) Ticker(currencyPair string) (ticker *exchange.Ticker, err error
 
 // 获取Candle
 func (g *GateIO) Candles(currencyPair string, groupSec, rangeHour int) (candles []exchange.Candle, err error) {
-	url := fmt.Sprintf("%s/candlestick2/%s?group_sec=%d&range_hour=%d", g.DataSource, currencyPair, groupSec, rangeHour)
+	url := fmt.Sprintf("/candlestick2/%s?group_sec=%d&range_hour=%d", currencyPair, groupSec, rangeHour)
 	param := ""
 
 	var result ResponseCandles
@@ -135,7 +145,7 @@ func (g *GateIO) Candles(currencyPair string, groupSec, rangeHour int) (candles 
 
 // Trade History
 func (g *GateIO) TradeHistory(params string) (string, error) {
-	url := g.DataSource + "/TradeHistory/" + params
+	url := "/TradeHistory/" + params
 	param := ""
 	data, err := g.httpDo(GET, url, param)
 	if err != nil {
@@ -147,7 +157,7 @@ func (g *GateIO) TradeHistory(params string) (string, error) {
 
 // Get account fund balances
 func (g *GateIO) Balances() (*ResponseBalances, error) {
-	url := g.DataSource + "/private/balances"
+	url := "/private/balances"
 	param := ""
 	data, err := g.httpDo(POST, url, param)
 	if err != nil {
@@ -161,7 +171,7 @@ func (g *GateIO) Balances() (*ResponseBalances, error) {
 //// get deposit address
 //func (g *GateIO) depositAddress(currency string) string {
 //	var method string = "POST"
-//	url := g.DataSource + "/private/depositAddress"
+//	url := "/private/depositAddress"
 //	param := "currency=" + currency
 //	var ret string = g.httpDo(method, url, param)
 //	return ret
@@ -170,33 +180,51 @@ func (g *GateIO) Balances() (*ResponseBalances, error) {
 //// get deposit withdrawal history
 //func (g *GateIO) depositsWithdrawals(start string, end string) string {
 //	var method string = "POST"
-//	url := g.DataSource + "/private/depositsWithdrawals"
+//	url := "/private/depositsWithdrawals"
 //	param := "start=" + start + "&end=" + end
 //	var ret string = g.httpDo(method, url, param)
 //	return ret
 //}
 //
+
 // Place order buy
-func (g *GateIO) Buy(currencyPair string, rate, amount float64) (res ResponseBuy, err error) {
-	url := g.DataSource + "/private/buy"
-	// 价格精度：5，数量精度：3
-	param := fmt.Sprintf("currencyPair=%s&rate=%.5f&amount=%.3f", currencyPair, rate, amount)
-	err = g.request(POST, url, param, &res)
+func (g *GateIO) Buy(symbol string, price, amount decimal.Decimal, orderType, text string) (orderId uint64, err error) {
+	resp, err := g.BuyOrder(symbol, price, amount, orderType, text)
+	if err != nil {
+		return 0, err
+	}
+	if resp.Result == "false" || resp.OrderNumber == 0 {
+		return 0, errors.New(resp.Message)
+	}
+	return resp.OrderNumber, nil
+}
+
+func (g *GateIO) BuyOrder(symbol string, price, amount decimal.Decimal, orderType, text string) (resp ResponseOrder, err error) {
+	url := "/private/buy"
+	param := fmt.Sprintf("currencyPair=%s&rate=%s&amount=%s&orderType=%s&text=t-%s", symbol, price, amount, orderType, text)
+	err = g.request(POST, url, param, &resp)
 	return
 }
 
 // Place order sell
-func (g *GateIO) Sell(currencyPair string, rate, amount float64) (res ResponseSell, err error) {
-	url := g.DataSource + "/private/sell"
+func (g *GateIO) Sell(symbol string, price, amount decimal.Decimal, orderType, text string) (orderId uint64, err error) {
+	url := "/private/sell"
 	// 价格精度：5，数量精度：3
-	param := fmt.Sprintf("currencyPair=%s&rate=%.5f&amount=%.3f", currencyPair, rate, amount)
+	param := fmt.Sprintf("currencyPair=%s&rate=%s&amount=%s&orderType=%s&text=t-%s", symbol, price, amount, orderType, text)
+	var res ResponseOrder
 	err = g.request(POST, url, param, &res)
-	return
+	if err != nil {
+		return 0, err
+	}
+	if res.Result == "false" || res.OrderNumber == 0 {
+		return 0, errors.New(res.Message)
+	}
+	return res.OrderNumber, nil
 }
 
 // Cancel order
 func (g *GateIO) CancelOrder(currencyPair string, orderNumber uint64) (ok bool, err error) {
-	url := g.DataSource + "/private/cancelOrder"
+	url := "/private/cancelOrder"
 	param := fmt.Sprintf("currencyPair=%s&orderNumber=%d", currencyPair, orderNumber)
 	var res ResponseCancel
 	err = g.request(POST, url, param, &res)
@@ -206,7 +234,7 @@ func (g *GateIO) CancelOrder(currencyPair string, orderNumber uint64) (ok bool, 
 
 // Cancel all orders
 func (g *GateIO) CancelAllOrders(types string, currencyPair string) (res ResponseCancel, err error) {
-	url := g.DataSource + "/private/cancelAllOrders"
+	url := "/private/cancelAllOrders"
 	param := "type=" + types + "&currencyPair=" + currencyPair
 	err = g.request(POST, url, param, &res)
 	return
@@ -214,7 +242,7 @@ func (g *GateIO) CancelAllOrders(types string, currencyPair string) (res Respons
 
 // Get order status
 func (g *GateIO) GetOrder(orderNumber uint64, currencyPair string) (order exchange.Order, err error) {
-	url := g.DataSource + "/private/getOrder"
+	url := "/private/getOrder"
 	param := fmt.Sprintf("orderNumber=%d&currencyPair=%s", orderNumber, currencyPair)
 	var res ResponseGetOrder
 	err = g.request(POST, url, param, &res)
@@ -228,13 +256,25 @@ func (g *GateIO) GetOrder(orderNumber uint64, currencyPair string) (order exchan
 	o := &res.Order
 	order.OrderNumber = convert.StrToUint64(o.OrderNumber)
 	order.Status = o.Status
+	order.FilledAmount = decimal.RequireFromString(o.FilledAmount)
 
 	return
 }
 
+func (g *GateIO) IsOrderClose(symbol string, order uint64) bool {
+	o, err := g.GetOrder(order, symbol)
+	if err != nil {
+		return false
+	}
+	if o.Status == OrderStatusClosed {
+		return true
+	}
+	return false
+}
+
 // Get my open order list
 func (g *GateIO) OpenOrders() (res ResponseOpenOrders, err error) {
-	url := g.DataSource + "/private/openOrders"
+	url := "/private/openOrders"
 	param := ""
 	err = g.request(POST, url, param, &res)
 	return
@@ -243,7 +283,7 @@ func (g *GateIO) OpenOrders() (res ResponseOpenOrders, err error) {
 // 获取我的24小时内成交记录
 func (g *GateIO) MyTradeHistory(currencyPair string) (*MyTradeHistoryResult, error) {
 	method := "POST"
-	url := g.DataSource + "/private/TradeHistory"
+	url := "/private/TradeHistory"
 	param := "orderNumber=&currencyPair=" + currencyPair
 	data, err := g.httpDo(method, url, param)
 	if err != nil {
@@ -257,7 +297,7 @@ func (g *GateIO) MyTradeHistory(currencyPair string) (*MyTradeHistoryResult, err
 // Get my last 24h trades
 //func (g *GateIO) withdraw(currency string, amount string, address string) string {
 //	var method string = "POST"
-//	url := g.DataSource + "/private/withdraw"
+//	url := "/private/withdraw"
 //	param := "currency=" + currency + "&amount=" + amount + "&address=" + address
 //	var ret string = g.httpDo(method, url, param)
 //	return ret
@@ -275,6 +315,13 @@ func (g *GateIO) getSign(params string) string {
 */
 func (g *GateIO) httpDo(method string, url string, param string) ([]byte, error) {
 	client := &http.Client{}
+	if method == GET {
+		url = g.publicBaseUrl + url
+	} else if method == POST {
+		url = g.privateBaseUrl + url
+	} else {
+		return nil, errors.New("unknown method")
+	}
 
 	req, err := http.NewRequest(method, url, strings.NewReader(param))
 	if err != nil {
@@ -308,6 +355,13 @@ func (g *GateIO) httpDo(method string, url string, param string) ([]byte, error)
 
 func (g *GateIO) request(method string, url string, param string, result interface{}) error {
 	client := &http.Client{}
+	if method == GET {
+		url = g.publicBaseUrl + url
+	} else if method == POST {
+		url = g.privateBaseUrl + url
+	} else {
+		return errors.New("unsupported method")
+	}
 
 	req, err := http.NewRequest(method, url, strings.NewReader(param))
 	if err != nil {
