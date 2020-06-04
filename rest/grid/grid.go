@@ -373,7 +373,7 @@ func (r *RestGridTrader) up(ctx context.Context) {
 		return
 	}
 	// place buy order
-	clientOrderId := fmt.Sprintf("b-%d", r.base)
+	clientOrderId := fmt.Sprintf("b-%d", r.base.Grid)
 	if orderId, err := r.buy(r.grids[r.base.Grid].Price, r.grids[r.base.Grid].AmountBuy, clientOrderId); err == nil {
 		r.grids[r.base.Grid].OrderId = orderId
 		if err := r.updateOrder(ctx, r.base.Grid, r.grids[r.base.Grid].OrderId); err != nil {
@@ -405,7 +405,7 @@ func (r *RestGridTrader) down(ctx context.Context) {
 		return
 	}
 	// place sell order
-	clientOrderId := fmt.Sprintf("s-%d", r.base)
+	clientOrderId := fmt.Sprintf("s-%d", r.base.Grid)
 	if orderId, err := r.sell(r.grids[r.base.Grid].Price, r.grids[r.base.Grid].AmountSell, clientOrderId); err == nil {
 		r.grids[r.base.Grid].OrderId = orderId
 		if err := r.updateOrder(ctx, r.base.Grid, r.grids[r.base.Grid].OrderId); err != nil {
