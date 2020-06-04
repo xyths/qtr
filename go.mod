@@ -7,7 +7,9 @@ require (
 	github.com/google/go-cmp v0.3.0 // indirect
 	github.com/huobirdcenter/huobi_golang v0.0.0-00010101000000-000000000000
 	github.com/jinzhu/gorm v1.9.12
+	github.com/karalabe/xgo v0.0.0-20191115072854-c5ccff8648a7 // indirect
 	github.com/klauspost/compress v1.10.3 // indirect
+	github.com/mattn/go-sqlite3 v2.0.1+incompatible
 	github.com/nntaoli-project/goex v1.1.1
 	github.com/pkg/errors v0.9.1
 	github.com/shopspring/decimal v1.2.0
