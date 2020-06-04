@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/jinzhu/gorm"
-	//_ "github.com/jinzhu/gorm/dialects/sqlite"
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/jinzhu/gorm/dialects/sqlite"
+	//_ "github.com/mattn/go-sqlite3"
 	"github.com/shopspring/decimal"
 	"github.com/xyths/hs"
 	. "github.com/xyths/hs/log"
@@ -168,7 +168,7 @@ func (r *RestGridTrader) saveGrids(ctx context.Context) {
 			Sugar.Fatalf("error when save Grids: %s", err)
 		}
 	}
-	if err := r.db.Create(&r.base); err != nil {
+	if err := r.db.Create(&r.base).Error; err != nil {
 		Sugar.Fatalf("error when save base: %s", err)
 	}
 }
