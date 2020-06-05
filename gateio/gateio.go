@@ -133,11 +133,11 @@ func (g *GateIO) Candles(currencyPair string, groupSec, rangeHour int) (candles 
 	for _, c := range result.Data {
 		candles = append(candles, exchange.Candle{
 			Timestamp: convert.StrToUint64(c[0]),
-			Volume:    convert.StrToFloat64(c[1]),
-			Close:     convert.StrToFloat64(c[2]),
-			High:      convert.StrToFloat64(c[3]),
-			Low:       convert.StrToFloat64(c[4]),
-			Open:      convert.StrToFloat64(c[5]),
+			Volume:    decimal.RequireFromString(c[1]),
+			Close:     decimal.RequireFromString(c[2]),
+			High:      decimal.RequireFromString(c[3]),
+			Low:       decimal.RequireFromString(c[4]),
+			Open:      decimal.RequireFromString(c[5]),
 		})
 	}
 	return

@@ -3,8 +3,6 @@ package main
 import (
 	"fmt"
 	"github.com/urfave/cli/v2"
-	"github.com/xyths/qtr/cmd/utils"
-	"log"
 	"os"
 	"path/filepath"
 )
@@ -12,20 +10,15 @@ import (
 var app *cli.App
 
 func init() {
-	log.SetFlags(log.Ldate | log.Ltime)
-
 	app = &cli.App{
 		Name:    filepath.Base(os.Args[0]),
-		Usage:   "the quantitative trading robot",
-		Version: "0.1.1",
+		Usage:   "the candlestick downloader for quantitative trading",
+		Version: "0.2.0",
 	}
 
 	app.Commands = []*cli.Command{
-		downloadCommand,
-		exportCommand,
-	}
-	app.Flags = []cli.Flag{
-		utils.ConfigFlag,
+		gateCommand,
+		huobiCommand,
 	}
 }
 

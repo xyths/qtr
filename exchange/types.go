@@ -40,11 +40,11 @@ type Ticker struct {
 
 type Candle struct {
 	Timestamp uint64 `gorm:"primary_key"`
-	Open      float64
-	Close     float64
-	High      float64
-	Low       float64
-	Volume    float64
+	Open      decimal.Decimal
+	Close     decimal.Decimal
+	High      decimal.Decimal
+	Low       decimal.Decimal
+	Volume    decimal.Decimal
 }
 
 type Balance struct {
