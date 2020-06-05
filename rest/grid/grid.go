@@ -240,7 +240,7 @@ func (r *RestGridTrader) ReBalance(ctx context.Context) error {
 			moneyNeed = moneyNeed.Add(g.TotalBuy)
 		}
 	}
-	Sugar.Infof("now base = %d, moneyNeed = %s, coinNeed = %s", r.base, moneyNeed, coinNeed)
+	Sugar.Infof("now base = %d, moneyNeed = %s, coinNeed = %s", r.base.Grid, moneyNeed, coinNeed)
 	balance, err := r.ex.Balances()
 	if err != nil {
 		Sugar.Fatalf("error when get balance in rebalance: %s", err)
