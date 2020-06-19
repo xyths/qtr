@@ -6,7 +6,6 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/xyths/hs"
 	. "github.com/xyths/hs/log"
-	"github.com/xyths/hs/mongohelper"
 	"github.com/xyths/qtr/gateio"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -63,7 +62,7 @@ func New(configFilename string) *Trader {
 }
 
 func (t *Trader) Init(ctx context.Context) {
-	db, err := mongohelper.ConnectMongo(ctx, t.config.Mongo)
+	db, err := hs.ConnectMongo(ctx, t.config.Mongo)
 	if err != nil {
 		Sugar.Fatal(err)
 	}

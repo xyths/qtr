@@ -40,4 +40,9 @@ var (
 		Value:   false,
 		Usage:   "do not run, just test config file",
 	}
+	DryRunFlag = &cli.BoolFlag{
+		Name:  "dry-run",
+		Value: false,
+		Usage: "do not run, just print the result",
+	}
 )

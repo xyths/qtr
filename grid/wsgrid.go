@@ -92,6 +92,8 @@ func (g *WsGrid) Run(ctx context.Context) error {
 	return nil
 }
 
+const CollName = "grid_status"
+
 // load base from mongo db
 func (g *WsGrid) load(ctx context.Context) (bool, error) {
 	coll := g.MongClient.Collection(CollName)

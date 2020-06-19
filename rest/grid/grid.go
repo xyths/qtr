@@ -3,13 +3,12 @@ package grid
 import (
 	"context"
 	"fmt"
-	"github.com/jinzhu/gorm"
-	_ "github.com/jinzhu/gorm/dialects/sqlite"
-	//_ "github.com/mattn/go-sqlite3"
 	"github.com/shopspring/decimal"
 	"github.com/xyths/hs"
 	. "github.com/xyths/hs/log"
 	"github.com/xyths/qtr/gateio"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 	"log"
 	"math"
 	"time"
@@ -17,14 +16,14 @@ import (
 
 type Config struct {
 	Exchange hs.ExchangeConf
-	SQLite   hs.SQLiteConf
+	Mongo    hs.MongoConf
 	Strategy hs.RestGridStrategyConf
 }
 
 type RestGridTrader struct {
 	config Config
 
-	db *gorm.DB
+	db *mongo.Database
 	ex *gateio.GateIO
 
 	symbol          string
@@ -36,8 +35,8 @@ type RestGridTrader struct {
 	minTotal        decimal.Decimal
 
 	scale  decimal.Decimal
-	grids  []Grid
-	base   Base
+	grids  []hs.Grid
+	base   int
 	cost   decimal.Decimal // average price
 	amount decimal.Decimal // amount held
 }
@@ -53,25 +52,13 @@ func New(configFilename string) *RestGridTrader {
 }
 
 func (r *RestGridTrader) Init(ctx context.Context) {
-	r.initSQLite(ctx)
-	r.initEx(ctx)
-	r.initGrids(ctx)
-}
-
-func (r *RestGridTrader) initSQLite(ctx context.Context) {
-	db, err := gorm.Open("sqlite3", r.config.SQLite.Location)
+	db, err := hs.ConnectMongo(ctx, r.config.Mongo)
 	if err != nil {
 		Sugar.Fatal(err)
 	}
 	r.db = db
-	o := Order{}
-	if !r.db.HasTable(&o) {
-		r.db.CreateTable(&o)
-	}
-	b := Base{}
-	if !r.db.HasTable(&b) {
-		r.db.CreateTable(&b)
-	}
+	r.initEx(ctx)
+	r.initGrids(ctx)
 }
 
 func (r *RestGridTrader) initEx(ctx context.Context) {
@@ -80,6 +67,10 @@ func (r *RestGridTrader) initEx(ctx context.Context) {
 	case "btc3l_usdt":
 		r.symbol = gateio.BTC3L_USDT
 		r.baseCurrency = gateio.BTC3L
+		r.quoteCurrency = gateio.USDT
+	case "btc_usdt":
+		r.symbol = gateio.BTC_USDT
+		r.baseCurrency = gateio.BTC
 		r.quoteCurrency = gateio.USDT
 	default:
 		r.symbol = "btc_usdt"
@@ -102,14 +93,9 @@ func (r *RestGridTrader) initGrids(ctx context.Context) {
 	r.scale = decimal.NewFromFloat(math.Pow(minPrice/maxPrice, 1.0/float64(number)))
 	preTotal := decimal.NewFromFloat(total / float64(number))
 	currentPrice := decimal.NewFromFloat(maxPrice)
-	currentGrid := Grid{
-		Param: Param{
-			Id:    0,
-			Price: currentPrice.Round(r.pricePrecision),
-		},
-		Order: Order{
-			Grid: 0,
-		},
+	currentGrid := hs.Grid{
+		Id:    0,
+		Price: currentPrice.Round(r.pricePrecision),
 	}
 	r.grids = append(r.grids, currentGrid)
 	for i := 1; i <= number; i++ {
@@ -122,16 +108,11 @@ func (r *RestGridTrader) initGrids(ctx context.Context) {
 		if realTotal.LessThan(r.minTotal) {
 			log.Fatalf("total %s less than minTotal(%s)", realTotal, r.minTotal)
 		}
-		currentGrid = Grid{
-			Param: Param{
-				Id:        i,
-				Price:     currentPrice,
-				AmountBuy: amountBuy,
-				TotalBuy:  realTotal,
-			},
-			Order: Order{
-				Grid: i,
-			},
+		currentGrid = hs.Grid{
+			Id:        i,
+			Price:     currentPrice,
+			AmountBuy: amountBuy,
+			TotalBuy:  realTotal,
 		}
 		r.grids = append(r.grids, currentGrid)
 		r.grids[i-1].AmountSell = amountBuy
@@ -154,38 +135,84 @@ func (r *RestGridTrader) Print(ctx context.Context) error {
 
 func (r *RestGridTrader) Close(ctx context.Context) {
 	if r.db != nil {
-		err := r.db.Close()
-		if err != nil {
-			Sugar.Errorf("close db error: %s", err)
-		}
+		_ = r.db.Client().Disconnect(ctx)
 	}
 }
 
+const (
+	collNameGrid = "grid"
+	collNameBase = "base"
+)
+
 func (r *RestGridTrader) saveGrids(ctx context.Context) {
-	//if r.db.HasTable()
+	collGrid := r.db.Collection(collNameGrid)
 	for _, g := range r.grids {
-		if err := r.db.Create(&g.Order).Error; err != nil {
+		if _, err := collGrid.InsertOne(ctx, bson.D{
+			{"id", g.Id},
+			{"price", g.Price.String()},
+			{"amountBuy", g.AmountBuy.String()},
+			{"amountSell", g.AmountSell.String()},
+			{"totalBuy", g.TotalBuy.String()},
+			{"order", g.Order},
+		}); err != nil {
 			Sugar.Fatalf("error when save Grids: %s", err)
 		}
 	}
-	if err := r.db.Create(&r.base).Error; err != nil {
-		Sugar.Fatalf("error when save base: %s", err)
+	collBase := r.db.Collection(collNameBase)
+	if _, err := collBase.InsertOne(ctx, bson.D{
+		{"symbol", r.symbol},
+		{"base", r.base},
+	}); err != nil {
+		Sugar.Fatalf("error when save short base: %s", err)
 	}
 }
 
 func (r *RestGridTrader) loadGrids(ctx context.Context) bool {
-	if r.db.First(&r.base).RecordNotFound() {
+	collBase := r.db.Collection(collNameBase)
+	var base struct {
+		Symbol string
+		Base   int
+	}
+	if err := collBase.FindOne(ctx, bson.D{{"symbol", r.symbol}}).Decode(&base); err == mongo.ErrNoDocuments {
+		return false
+	}
+	r.base = base.Base
+
+	collGrid := r.db.Collection(collNameGrid)
+	cursor, err := collGrid.Find(ctx, bson.D{})
+	var items []struct {
+		Id                                     int
+		Price, AmountBuy, AmountSell, TotalBuy string
+		Order                                  uint64
+	}
+
+	if err = cursor.All(ctx, &items); err != nil {
 		return false
 	}
 
-	var orders []Order
-	if err := r.db.Find(&orders).Error; err != nil {
-		Sugar.Fatalf("find orders error: %s", err)
-	}
-	for _, o := range orders {
-		if o.Grid >= 0 && o.Grid < len(r.grids) {
-			Sugar.Infow("load grid", "id", o.Grid, "order", o.OrderId)
-			r.grids[o.Grid].OrderId = o.OrderId
+	for _, item := range items {
+		if item.Id < 0 || item.Id >= len(r.grids) {
+			Sugar.Fatalw("loaded grid index out of range",
+				"id", item.Id,
+				"grids", len(r.grids),
+				"price", item.Price,
+				"order", item.Order,
+			)
+			continue
+		}
+		if item.Order != 0 {
+			r.grids[item.Id].Order = item.Order
+			Sugar.Infow("grid loaded",
+				"id", item.Id,
+				"price", item.Price,
+				"order", item.Order,
+			)
+		} else {
+			Sugar.Infow("base grid ignored",
+				"id", item.Id,
+				"price", item.Price,
+				"order", item.Order,
+			)
 		}
 	}
 
@@ -199,7 +226,7 @@ func (r *RestGridTrader) Start(ctx context.Context) error {
 		Sugar.Info("no order loaded")
 		// rebalance
 		if r.config.Strategy.Rebalance {
-			if err := r.ReBalance(ctx); err != nil {
+			if err := r.ReBalance(ctx, false); err != nil {
 				log.Fatalf("error when rebalance: %s", err)
 			}
 		}
@@ -224,30 +251,33 @@ func (r *RestGridTrader) Start(ctx context.Context) error {
 	}
 }
 
-func (r *RestGridTrader) ReBalance(ctx context.Context) error {
+func (r *RestGridTrader) ReBalance(ctx context.Context, dryRun bool) error {
 	price, err := r.last()
 	if err != nil {
 		Sugar.Fatalf("get ticker error: %s", err)
 	}
-	r.base.Grid = 0
+	r.base = 0
 	moneyNeed := decimal.NewFromInt(0)
 	coinNeed := decimal.NewFromInt(0)
 	for i, g := range r.grids {
 		if g.Price.GreaterThan(price) {
-			r.base.Grid = i
+			r.base = i
 			coinNeed = coinNeed.Add(g.AmountBuy)
 		} else {
 			moneyNeed = moneyNeed.Add(g.TotalBuy)
 		}
 	}
-	Sugar.Infof("now base = %d, moneyNeed = %s, coinNeed = %s", r.base.Grid, moneyNeed, coinNeed)
-	balance, err := r.ex.Balances()
+	Sugar.Infof("now base = %d, moneyNeed = %s, coinNeed = %s", r.base, moneyNeed, coinNeed)
+	balance, err := r.ex.AvailableBalance()
 	if err != nil {
 		Sugar.Fatalf("error when get balance in rebalance: %s", err)
 	}
 	moneyHeld := balance[r.quoteCurrency]
 	coinHeld := balance[r.baseCurrency]
 	Sugar.Infof("account has money %s, coin %s", moneyHeld, coinHeld)
+	if dryRun {
+		return nil
+	}
 	r.cost = price
 	r.amount = coinNeed
 	direct, amount := r.assetRebalancing(moneyNeed, coinNeed, moneyHeld, coinHeld, price)
@@ -257,7 +287,7 @@ func (r *RestGridTrader) ReBalance(ctx context.Context) error {
 		Sugar.Info("no need to rebalance")
 	} else if direct == -1 {
 		// place sell order
-		r.base.Grid++
+		r.base++
 		clientOrderId := fmt.Sprintf("pre-sell")
 		orderId, err := r.sell(price, amount, clientOrderId)
 		if err != nil {
@@ -279,8 +309,44 @@ func (r *RestGridTrader) ReBalance(ctx context.Context) error {
 	return nil
 }
 
+func (r *RestGridTrader) Clear(ctx context.Context, dryRun bool) error {
+	if !r.loadGrids(ctx) {
+		Sugar.Info("no order loaded, no need to clear")
+		return nil
+	}
+	collGrid := r.db.Collection(collNameGrid)
+	for _, g := range r.grids {
+		if g.Order == 0 {
+			Sugar.Debugw("order id is 0", "grid", g.Id, "price", g.Price)
+		} else {
+			Sugar.Debugw("cancel order", "symbol", r.symbol, "orderNumber", g.Order)
+			if ok, err := r.ex.CancelOrder(r.symbol, g.Order); err != nil {
+				Sugar.Errorf("cancel order %d error: %s", g.Order, err)
+				continue
+			} else if !ok {
+				Sugar.Errorf("cancel order %d response not ok", g.Order)
+				continue
+			}
+			g.Order = 0
+		}
+		if _, err := collGrid.DeleteOne(ctx, bson.D{{"id", g.Id}}); err != nil {
+			Sugar.Fatalf("error when delete grid %d: %s", g.Order, err)
+		}
+	}
+	if r.base != 0 {
+		collBase := r.db.Collection(collNameBase)
+		if _, err := collBase.DeleteOne(ctx, bson.D{
+			{"symbol", r.symbol},
+			{"base", r.base},
+		}); err != nil {
+			Sugar.Fatalf("error when delete base: %s", err)
+		}
+	}
+	return nil
+}
+
 func (r *RestGridTrader) setupGridOrders(ctx context.Context) {
-	for i := r.base.Grid - 1; i >= 0; i-- {
+	for i := r.base - 1; i >= 0; i-- {
 		// sell
 		clientOrderId := fmt.Sprintf("s-%d", i)
 		orderId, err := r.sell(r.grids[i].Price, r.grids[i].AmountSell, clientOrderId)
@@ -288,9 +354,9 @@ func (r *RestGridTrader) setupGridOrders(ctx context.Context) {
 			Sugar.Errorf("error when setupGridOrders, grid number: %d, err: %s", i, err)
 			continue
 		}
-		r.grids[i].OrderId = orderId
+		r.grids[i].Order = orderId
 	}
-	for i := r.base.Grid + 1; i < len(r.grids); i++ {
+	for i := r.base + 1; i < len(r.grids); i++ {
 		// buy
 		clientOrderId := fmt.Sprintf("b-%d", i)
 		orderId, err := r.buy(r.grids[i].Price, r.grids[i].AmountBuy, clientOrderId)
@@ -298,7 +364,7 @@ func (r *RestGridTrader) setupGridOrders(ctx context.Context) {
 			Sugar.Errorf("error when setupGridOrders, grid number: %d, err: %s", i, err)
 			continue
 		}
-		r.grids[i].OrderId = orderId
+		r.grids[i].Order = orderId
 	}
 }
 
@@ -364,60 +430,60 @@ func (r *RestGridTrader) assetRebalancing(moneyNeed, coinNeed, moneyHeld, coinHe
 
 func (r *RestGridTrader) up(ctx context.Context) {
 	// make sure base >= 0
-	if r.base.Grid == 0 {
+	if r.base == 0 {
 		Sugar.Infof("grid base = 0, up OUT")
 		return
 	}
-	if r.base.Grid > len(r.grids)-1 {
+	if r.base > len(r.grids)-1 {
 		Sugar.Errorw("wrong base when up", "base", r.base)
 		return
 	}
 	// place buy order
-	clientOrderId := fmt.Sprintf("b-%d", r.base.Grid)
-	if orderId, err := r.buy(r.grids[r.base.Grid].Price, r.grids[r.base.Grid].AmountBuy, clientOrderId); err == nil {
-		r.grids[r.base.Grid].OrderId = orderId
-		if err := r.updateOrder(ctx, r.base.Grid, r.grids[r.base.Grid].OrderId); err != nil {
+	clientOrderId := fmt.Sprintf("b-%d", r.base)
+	if orderId, err := r.buy(r.grids[r.base].Price, r.grids[r.base].AmountBuy, clientOrderId); err == nil {
+		r.grids[r.base].Order = orderId
+		if err := r.updateOrder(ctx, r.base, r.grids[r.base].Order); err != nil {
 			Sugar.Errorf("update order error: %s", err)
 		}
 	} else {
 		Sugar.Errorf("place order error: %s", err)
 		return
 	}
-	r.base.Grid--
-	if err := r.updateBase(ctx, r.base.Grid); err != nil {
+	r.base--
+	if err := r.updateBase(ctx, r.base); err != nil {
 		Sugar.Errorf("update order error: %s", err)
 	}
 
-	r.grids[r.base.Grid].OrderId = 0
-	if err := r.updateOrder(ctx, r.base.Grid, r.grids[r.base.Grid].OrderId); err != nil {
+	r.grids[r.base].Order = 0
+	if err := r.updateOrder(ctx, r.base, r.grids[r.base].Order); err != nil {
 		Sugar.Errorf("update order error: %s", err)
 	}
 }
 
 func (r *RestGridTrader) down(ctx context.Context) {
 	// make sure base <= len(grids)
-	if r.base.Grid == len(r.grids) {
+	if r.base == len(r.grids) {
 		Sugar.Infof("grid base = %d, down OUT", r.base)
 		return
 	}
-	if r.base.Grid < 0 {
+	if r.base < 0 {
 		Sugar.Errorw("wrong base when up", "base", r.base)
 		return
 	}
 	// place sell order
-	clientOrderId := fmt.Sprintf("s-%d", r.base.Grid)
-	if orderId, err := r.sell(r.grids[r.base.Grid].Price, r.grids[r.base.Grid].AmountSell, clientOrderId); err == nil {
-		r.grids[r.base.Grid].OrderId = orderId
-		if err := r.updateOrder(ctx, r.base.Grid, r.grids[r.base.Grid].OrderId); err != nil {
+	clientOrderId := fmt.Sprintf("s-%d", r.base)
+	if orderId, err := r.sell(r.grids[r.base].Price, r.grids[r.base].AmountSell, clientOrderId); err == nil {
+		r.grids[r.base].Order = orderId
+		if err := r.updateOrder(ctx, r.base, r.grids[r.base].Order); err != nil {
 			Sugar.Errorf("update order error: %s", err)
 		}
 	}
-	r.base.Grid++
-	if err := r.updateBase(ctx, r.base.Grid); err != nil {
+	r.base++
+	if err := r.updateBase(ctx, r.base); err != nil {
 		Sugar.Errorf("update order error: %s", err)
 	}
-	r.grids[r.base.Grid].OrderId = 0
-	if err := r.updateOrder(ctx, r.base.Grid, r.grids[r.base.Grid].OrderId); err != nil {
+	r.grids[r.base].Order = 0
+	if err := r.updateOrder(ctx, r.base, r.grids[r.base].Order); err != nil {
 		Sugar.Errorf("update order error: %s", err)
 	}
 }
@@ -442,37 +508,66 @@ func (r *RestGridTrader) last() (decimal.Decimal, error) {
 }
 
 func (r *RestGridTrader) checkOrders(ctx context.Context) {
-	top := r.base.Grid - 1
+	top := r.base - 1
 	if top >= 0 {
 		Sugar.Debugw("check order",
 			"index", top,
 			"symbol", r.symbol,
 			"direct", "sell",
 			"order", r.grids[top].Order)
-		if r.grids[top].OrderId != 0 && r.ex.IsOrderClose(r.symbol, r.grids[top].OrderId) {
+		if r.grids[top].Order != 0 && r.ex.IsOrderClose(r.symbol, r.grids[top].Order) {
 			go r.up(ctx)
 			return
 		}
 	}
 
-	bottom := r.base.Grid + 1
+	bottom := r.base + 1
 	if bottom < len(r.grids) {
 		Sugar.Debugw("check order",
 			"index", bottom,
 			"symbol", r.symbol,
 			"direct", "buy",
 			"order", r.grids[bottom].Order)
-		if r.grids[bottom].OrderId != 0 && r.ex.IsOrderClose(r.symbol, r.grids[bottom].OrderId) {
+		if r.grids[bottom].Order != 0 && r.ex.IsOrderClose(r.symbol, r.grids[bottom].Order) {
 			go r.down(ctx)
 		}
 	}
 }
 
 func (r *RestGridTrader) updateBase(ctx context.Context, newBase int) error {
-	return r.db.Model(&r.base).Update("grid", newBase).Error
+	coll := r.db.Collection(collNameBase)
+	_, err := coll.UpdateOne(
+		ctx,
+		bson.D{
+			{"symbol", r.symbol},
+		},
+		bson.D{
+			{"$set", bson.D{
+				{"base", newBase},
+			}},
+			{"$currentDate", bson.D{
+				{"lastModified", true},
+			}},
+		},
+	)
+	return err
 }
 
 func (r *RestGridTrader) updateOrder(ctx context.Context, id int, order uint64) error {
-	o := Order{}
-	return r.db.Model(&o).Where(map[string]interface{}{"grid": id}).Update("order", order).Error
+	collGrid := r.db.Collection(collNameGrid)
+	_, err := collGrid.UpdateOne(
+		ctx,
+		bson.D{
+			{"id", id},
+		},
+		bson.D{
+			{"$set", bson.D{
+				{"order", order},
+			}},
+			{"$currentDate", bson.D{
+				{"lastModified", true},
+			}},
+		},
+	)
+	return err
 }

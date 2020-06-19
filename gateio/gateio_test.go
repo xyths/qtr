@@ -75,9 +75,9 @@ func TestGateIO_Balances(t *testing.T) {
 	secretKey := os.Getenv("secretKey")
 	gateio := New(apiKey, secretKey)
 
-	balances, err := gateio.Balances()
+	balances, err := gateio.AvailableBalance()
 	if err != nil {
-		t.Logf("error when Balances: %s", err)
+		t.Logf("error when AvailableBalance: %s", err)
 	}
 	t.Logf("balances is %#v", balances)
 }

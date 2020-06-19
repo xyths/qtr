@@ -156,7 +156,7 @@ func (g *GateIO) TradeHistory(params string) (string, error) {
 }
 
 // Get account fund balances
-func (g *GateIO) Balances() (map[string]decimal.Decimal, error) {
+func (g *GateIO) AvailableBalance() (map[string]decimal.Decimal, error) {
 	url := "/private/balances"
 	param := ""
 	data, err := g.httpDo(POST, url, param)
@@ -169,17 +169,6 @@ func (g *GateIO) Balances() (map[string]decimal.Decimal, error) {
 	}
 	balance := make(map[string]decimal.Decimal)
 	for k, v := range result.Available {
-		b := decimal.RequireFromString(v)
-		if b.IsZero() {
-			continue
-		}
-		if ob, ok := balance[k]; ok {
-			balance[k] = ob.Add(b)
-		} else {
-			balance[k] = b
-		}
-	}
-	for k, v := range result.Locked {
 		b := decimal.RequireFromString(v)
 		if b.IsZero() {
 			continue

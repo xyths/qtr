@@ -6,6 +6,7 @@
 *.dylib
 qtr
 qtr.*
+qtr_linux.*
 qcandle
 qcandle.*
 wsq

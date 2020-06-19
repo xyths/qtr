@@ -306,7 +306,7 @@ func (n *Node) getUserAsset(ctx context.Context, u User) error {
 		n.gormDB.CreateTable(&types.GateBalance{})
 	}
 	//client := gateio.New(u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey, "gatecn.io")
-	//balances, err := client.Balances()
+	//balances, err := client.AvailableBalance()
 	//if err != nil {
 	//	return err
 	//}
