@@ -47,11 +47,11 @@ var (
 				Usage:  "Pull trading history from exchange",
 			},
 			{
-				Action: export,
-				Name:   "export",
-				Usage:  "Export trading history to csv",
+				Action:      export,
+				Name:        "export",
+				Usage:       "Export trading history to csv",
+				Description: description,
 				Flags: []cli.Flag{
-					utils.LabelFlag,
 					utils.StartTimeFlag,
 					utils.EndTimeFlag,
 					utils.CsvFlag,
@@ -78,6 +78,8 @@ var (
 		},
 	}
 )
+
+const description = "Export the account's (in config file) trading history, start from `start` to`end` (closed interval, [`start`, `end`]), save items to `csv` file."
 
 func gridAction(ctx *cli.Context) error {
 	configFile := ctx.String(utils.ConfigFlag.Name)
@@ -122,6 +124,19 @@ func pull(ctx *cli.Context) error {
 	return h.Pull(ctx.Context)
 }
 
+func export(ctx *cli.Context) error {
+	configFile := ctx.String(utils.ConfigFlag.Name)
+	h := history.New(configFile)
+	h.Init(ctx.Context)
+	defer h.Close(ctx.Context)
+
+	start := ctx.String(utils.StartTimeFlag.Name)
+	end := ctx.String(utils.EndTimeFlag.Name)
+	csv := ctx.String(utils.CsvFlag.Name)
+
+	return h.Export(ctx.Context, start, end, csv)
+}
+
 func profit(ctx *cli.Context) error {
 	label := ctx.String(utils.LabelFlag.Name)
 	start := ctx.String(utils.StartTimeFlag.Name)
@@ -138,14 +153,4 @@ func snapshot(ctx *cli.Context) error {
 	n.Init(ctx.Context)
 	defer n.Close()
 	return n.Snapshot(ctx.Context, label)
-}
-
-func export(ctx *cli.Context) error {
-	label := ctx.String(utils.LabelFlag.Name)
-	start := ctx.String(utils.StartTimeFlag.Name)
-	end := ctx.String(utils.EndTimeFlag.Name)
-	csv := ctx.String(utils.CsvFlag.Name)
-	n := utils.GetNode(ctx)
-	defer n.Close()
-	return n.Export(ctx.Context, label, start, end, csv)
 }

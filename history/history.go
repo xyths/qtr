@@ -2,6 +2,8 @@ package history
 
 import (
 	"context"
+	"encoding/csv"
+	"errors"
 	"fmt"
 	"github.com/xyths/hs"
 	. "github.com/xyths/hs/log"
@@ -10,6 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"log"
+	"os"
 	"time"
 )
 
@@ -125,4 +128,93 @@ func (h *History) getHistoryOnce(ctx context.Context) error {
 	log.Printf("get history for %s-%s finish now, all: %d, success: %d, duplicate: %d, fail: %d",
 		h.config.Exchange.Name, h.config.Exchange.Label, all, success, duplicate, fail)
 	return nil
+}
+
+func (h *History) Export(ctx context.Context, start, end, csvfile string) error {
+	startTime, endTime, err := parseTime(start, end)
+	if err != nil {
+		Sugar.Error(err)
+		return err
+	}
+	f, err := os.Create(csvfile)
+	if err != nil {
+		Sugar.Error(err)
+		return err
+	}
+	defer func() {
+		_ = f.Close()
+	}()
+
+	w := csv.NewWriter(f)
+	header := []string{"account", "time", "type", "price", "amount", "total", "GT", "tradeId", "orderNumber"}
+	if err = w.Write(header); err != nil {
+		Sugar.Errorf("error when write csv header: %s", err)
+	}
+	w.Flush()
+
+	trades, err := h.getUserTrades(ctx, startTime, endTime);
+	if err != nil {
+		Sugar.Errorf("error when getUserAsset: %s", err)
+		return err
+	}
+	//write to csv
+	for _, t := range trades {
+		record := []string{
+			h.config.Exchange.Label,
+			t.Date,
+			t.Type,
+			t.Price,
+			t.Amount,
+			t.Total,
+			t.Fee["gt"],
+			fmt.Sprintf("%d", t.TradeId),
+			fmt.Sprintf("%d", t.OrderId),
+		}
+		if err1 := w.Write(record); err1 != nil {
+			log.Printf("error when write record: %s", err1)
+		}
+	}
+	w.Flush()
+
+	return nil
+}
+
+func (n *History) getUserTrades(ctx context.Context, start, end time.Time) (trades []types.Trade, err error) {
+	coll := n.db.Collection(collNameHistory)
+	cursor, err := coll.Find(ctx, bson.D{
+		{"date", bson.D{
+			{"$gte", start.Format(layout)},
+			{"$lte", end.Format(layout)},
+		}},
+	})
+	if err != nil {
+		return
+	}
+	err = cursor.All(ctx, &trades)
+
+	return
+}
+
+const layout = "2006-01-02 15:04:05"
+
+func parseTime(start, end string) (startTime, endTime time.Time, err error) {
+	secondsEastOfUTC := int((8 * time.Hour).Seconds())
+	beijing := time.FixedZone("Beijing Time", secondsEastOfUTC)
+
+	startTime, err = time.ParseInLocation(layout, start, beijing)
+	if err != nil {
+		log.Printf("error start format: %s", start)
+		return
+	}
+	endTime, err = time.ParseInLocation(layout, end, beijing)
+	if err != nil {
+		log.Printf("error end format: %s", end)
+		return
+	}
+	if !startTime.Before(endTime) {
+		err = errors.New(fmt.Sprintf("start time(%s) must before end time(%s)", startTime.String(), endTime.String()))
+		log.Println(err)
+		return
+	}
+	return
 }
