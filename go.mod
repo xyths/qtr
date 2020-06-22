@@ -13,7 +13,7 @@ require (
 	github.com/shopspring/decimal v1.2.0
 	github.com/stretchr/testify v1.4.0
 	github.com/urfave/cli/v2 v2.2.0
-	github.com/xyths/hs v0.6.0
+	github.com/xyths/hs v0.6.1
 	go.mongodb.org/mongo-driver v1.3.2
 	golang.org/x/crypto v0.0.0-20200403201458-baeed622b8d8 // indirect
 	golang.org/x/net v0.0.0-20190827160401-ba9fcec4b297

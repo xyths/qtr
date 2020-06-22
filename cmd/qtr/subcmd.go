@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/urfave/cli/v2"
 	"github.com/xyths/qtr/cmd/utils"
+	"github.com/xyths/qtr/history"
 	"github.com/xyths/qtr/node"
 	"github.com/xyths/qtr/rest/grid"
 )
@@ -114,9 +115,11 @@ func clearGrid(ctx *cli.Context) error {
 }
 
 func pull(ctx *cli.Context) error {
-	n := utils.GetNode(ctx)
-	defer n.Close()
-	return n.PullHistory(ctx.Context)
+	configFile := ctx.String(utils.ConfigFlag.Name)
+	h := history.New(configFile)
+	h.Init(ctx.Context)
+	defer h.Close(ctx.Context)
+	return h.Pull(ctx.Context)
 }
 
 func profit(ctx *cli.Context) error {

@@ -513,7 +513,7 @@ func (r *RestGridTrader) checkOrders(ctx context.Context) {
 		Sugar.Debugw("check order",
 			"index", top,
 			"symbol", r.symbol,
-			"direct", "sell",
+			"type", "sell",
 			"order", r.grids[top].Order)
 		if r.grids[top].Order != 0 && r.ex.IsOrderClose(r.symbol, r.grids[top].Order) {
 			go r.up(ctx)
@@ -526,7 +526,7 @@ func (r *RestGridTrader) checkOrders(ctx context.Context) {
 		Sugar.Debugw("check order",
 			"index", bottom,
 			"symbol", r.symbol,
-			"direct", "buy",
+			"type", "buy",
 			"order", r.grids[bottom].Order)
 		if r.grids[bottom].Order != 0 && r.ex.IsOrderClose(r.symbol, r.grids[bottom].Order) {
 			go r.down(ctx)

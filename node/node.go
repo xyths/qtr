@@ -10,7 +10,6 @@ import (
 	"github.com/nntaoli-project/goex/builder"
 	"github.com/pkg/errors"
 	"github.com/xyths/hs"
-	"github.com/xyths/hs/convert"
 	"github.com/xyths/qtr/exchange"
 	"github.com/xyths/qtr/exchange/huobi"
 	"github.com/xyths/qtr/gateio"
@@ -115,106 +114,106 @@ func (n *Node) doGridOnce(ctx context.Context) error {
 	return nil
 }
 
-func (n *Node) PullHistory(ctx context.Context) error {
-	d, err := time.ParseDuration(n.config.History.Interval)
-	if err != nil {
-		log.Fatalf("parse duration error: %s", err)
-	}
-	if !n.gormDB.HasTable(types.Trade{}) {
-		n.gormDB.CreateTable(types.Trade{})
-	}
-	if err := n.getHistoryOnce(ctx); err != nil {
-		log.Printf("error when getHistory: %s", err)
-	}
+//func (n *Node) PullHistory(ctx context.Context) error {
+//	d, err := time.ParseDuration(n.config.History.Interval)
+//	if err != nil {
+//		log.Fatalf("parse duration error: %s", err)
+//	}
+//	if !n.gormDB.HasTable(types.Trade{}) {
+//		n.gormDB.CreateTable(types.Trade{})
+//	}
+//	if err := n.getHistoryOnce(ctx); err != nil {
+//		log.Printf("error when getHistory: %s", err)
+//	}
+//
+//	for {
+//		select {
+//		case <-ctx.Done():
+//			log.Println(ctx.Err())
+//			return nil
+//		case <-time.After(d):
+//			if err := n.getHistoryOnce(ctx); err != nil {
+//				log.Printf("error when getHistory: %s", err)
+//			}
+//		}
+//	}
+//}
 
-	for {
-		select {
-		case <-ctx.Done():
-			log.Println(ctx.Err())
-			return nil
-		case <-time.After(d):
-			if err := n.getHistoryOnce(ctx); err != nil {
-				log.Printf("error when getHistory: %s", err)
-			}
-		}
-	}
-}
+//func (n *Node) getHistoryOnce(ctx context.Context) error {
+//	for _, u := range n.config.Users {
+//		select {
+//		case <-ctx.Done():
+//			log.Println(ctx.Err())
+//			return nil
+//		default:
+//			if err := n.getUserHistory(ctx, u); err != nil {
+//				log.Printf("error when getHistory: %s", err)
+//			}
+//		}
+//	}
+//	return nil
+//}
 
-func (n *Node) getHistoryOnce(ctx context.Context) error {
-	for _, u := range n.config.Users {
-		select {
-		case <-ctx.Done():
-			log.Println(ctx.Err())
-			return nil
-		default:
-			if err := n.getUserHistory(ctx, u); err != nil {
-				log.Printf("error when getHistory: %s", err)
-			}
-		}
-	}
-	return nil
-}
-
-func (n *Node) getUserHistory(ctx context.Context, u User) error {
-	log.Printf("get history for %s-%s start now", u.Exchange, u.Label)
-
-	client := gateio.New(u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey, "gatecn.io")
-	history, err := client.MyTradeHistory(strings.ToUpper(u.Pair))
-	if err != nil {
-		return err
-	}
-
-	all := len(history.Trades)
-	success := 0
-	duplicate := 0
-	fail := 0
-	label := u.Label
-
-	//coll := n.mg.Collection(n.historyCollName(u))
-	for _, t := range history.Trades {
-		trade := types.Trade{
-			TradeId:     t.TradeId,
-			OrderNumber: t.OrderNumber,
-			Label:       label,
-			Pair:        strings.ToUpper(t.Pair),
-			Type:        t.Type,
-			Rate:        convert.StrToFloat64(t.Rate),
-			Amount:      convert.StrToFloat64(t.Amount),
-			Total:       t.Total,
-			Date:        time.Unix(t.TimeUnix, 0),
-			Role:        t.Role,
-			Fee:         convert.StrToFloat64(t.Fee),
-			FeeCoin:     t.FeeCoin,
-			GtFee:       convert.StrToFloat64(t.GtFee),
-			PointFee:    convert.StrToFloat64(t.PointFee),
-		}
-		if trade.Fee != 0 {
-			trade.Fee *= -1
-		}
-		if trade.GtFee != 0 {
-			trade.GtFee *= -1
-		}
-		if trade.PointFee != 0 {
-			trade.PointFee *= -1
-		}
-		switch trade.Type {
-		case "buy":
-			trade.Total *= -1
-		case "sell":
-			trade.Amount *= -1
-		}
-
-		if n.gormDB.First(&trade).RecordNotFound() {
-			n.gormDB.Create(trade)
-			success++
-		} else {
-			duplicate++
-		}
-	}
-	log.Printf("get history for %s-%s finish now, all: %d, success: %d, duplicate: %d, fail: %d",
-		u.Exchange, u.Label, all, success, duplicate, fail)
-	return nil
-}
+//func (n *Node) getUserHistory(ctx context.Context, u User) error {
+//	log.Printf("get history for %s-%s start now", u.Exchange, u.Label)
+//
+//	client := gateio.New(u.APIKeyPair.ApiKey, u.APIKeyPair.SecretKey, "gatecn.io")
+//	history, err := client.MyTradeHistory(strings.ToUpper(u.Pair))
+//	if err != nil {
+//		return err
+//	}
+//
+//	all := len(history.Trades)
+//	success := 0
+//	duplicate := 0
+//	fail := 0
+//	label := u.Label
+//
+//	//coll := n.mg.Collection(n.historyCollName(u))
+//	for _, t := range history.Trades {
+//		trade := types.Trade{
+//			TradeId:  t.TradeId,
+//			OrderId:  t.OrderNumber,
+//			Label:    label,
+//			Symbol:   strings.ToUpper(t.Pair),
+//			Type:     t.Type,
+//			Price:    convert.StrToFloat64(t.Rate),
+//			Amount:   convert.StrToFloat64(t.Amount),
+//			Total:    t.Total,
+//			Date:     time.Unix(t.TimeUnix, 0),
+//			Role:     t.Role,
+//			Fee:      convert.StrToFloat64(t.Fee),
+//			FeeCoin:  t.FeeCoin,
+//			GtFee:    convert.StrToFloat64(t.GtFee),
+//			PointFee: convert.StrToFloat64(t.PointFee),
+//		}
+//		if trade.Fee != 0 {
+//			trade.Fee *= -1
+//		}
+//		if trade.GtFee != 0 {
+//			trade.GtFee *= -1
+//		}
+//		if trade.PointFee != 0 {
+//			trade.PointFee *= -1
+//		}
+//		switch trade.Type {
+//		case "buy":
+//			trade.Total *= -1
+//		case "sell":
+//			trade.Amount *= -1
+//		}
+//
+//		if n.gormDB.First(&trade).RecordNotFound() {
+//			n.gormDB.Create(trade)
+//			success++
+//		} else {
+//			duplicate++
+//		}
+//	}
+//	log.Printf("get history for %s-%s finish now, all: %d, success: %d, duplicate: %d, fail: %d",
+//		u.Exchange, u.Label, all, success, duplicate, fail)
+//	return nil
+//}
 
 func (n *Node) Profit(ctx context.Context, label, start, end string) error {
 	startTime, endTime, err := parseTime(start, end)
@@ -249,17 +248,17 @@ func (n *Node) getUserProfit(ctx context.Context, u User, start, end time.Time) 
 	usdt := 0.0
 	gtFee := 0.0
 	for _, t := range trades {
-		log.Printf("tradeId: %d, orderNumber: %d, date: %s, type: %s, rate: %f, amount: %f, total: %f, gtFee: %f",
-			t.TradeId, t.OrderNumber, t.Date.String(), t.Type, t.Rate, t.Amount, t.Total, t.GtFee)
+		//log.Printf("tradeId: %d, orderNumber: %d, date: %s, type: %s, rate: %f, amount: %f, total: %f, gtFee: %f",
+		//	t.TradeId, t.OrderId, t.Date.String(), t.Type, t.Price, t.Amount, t.Total, t.GtFee)
 		switch t.Type {
-		case "buy":
-			sero += t.Amount
-			usdt -= t.Total
-			gtFee -= t.GtFee
-		case "sell":
-			sero -= t.Amount
-			usdt += t.Total
-			gtFee -= t.GtFee
+		//case "buy":
+		//	sero += t.Amount
+		//	usdt -= t.Total
+		//	gtFee -= t.GtFee
+		//case "sell":
+		//	sero -= t.Amount
+		//	usdt += t.Total
+		//	gtFee -= t.GtFee
 		default:
 			log.Println("unknown trade type: %s", t.Type)
 		}
@@ -384,23 +383,23 @@ func (n *Node) Export(ctx context.Context, label, start, end, csvfile string) er
 			for _, t := range trades {
 				SERO := t.Amount
 				USDT := t.Total
-				GT := - t.GtFee
-				switch t.Type {
-				case "buy":
-					USDT *= -1
-				case "sell":
-					SERO *= -1
-				}
+				//GT := - t.GtFee
+				//switch t.Type {
+				//case "buy":
+				//	USDT *= -1
+				//case "sell":
+				//	SERO *= -1
+				//}
 				record := []string{
-					t.Label,
-					t.Date.String(),
+					//t.Label,
+					t.Date,
 					t.Type,
-					fmt.Sprintf("%f", t.Rate),
+					fmt.Sprintf("%f", t.Price),
 					fmt.Sprintf("%f", SERO),
 					fmt.Sprintf("%f", USDT),
-					fmt.Sprintf("%f", GT),
+					//fmt.Sprintf("%f", GT),
 					fmt.Sprintf("%d", t.TradeId),
-					fmt.Sprintf("%d", t.OrderNumber),
+					fmt.Sprintf("%d", t.OrderId),
 				}
 				if err1 := w.Write(record); err1 != nil {
 					log.Printf("error when write record: %s", err1)

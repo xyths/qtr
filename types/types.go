@@ -11,20 +11,16 @@ import "time"
 //	time: 订单时间
 //	time_unix: 订单unix时间戳
 type Trade struct {
-	TradeId     uint64    `bson:"_id" gorm:"primary_key"`
-	OrderNumber uint64    `bson:"orderNumber"`
-	Label       string    `bson:"label"`
-	Pair        string    `bson:"pair"`
-	Type        string    `bson:"type"`
-	Rate        float64   `bson:"rate"` //成交价格
-	Amount      float64   `bson:"amount"`
-	Total       float64   `bson:"total"`
-	Date        time.Time `bson:"date"`
-	Role        string    `bson:"role"`
-	Fee         float64   `bson:"fee"`
-	FeeCoin     string    `bson:"feeCoin"`
-	GtFee       float64   `bson:"gtFee"`
-	PointFee    float64   `bson:"pointFee"`
+	TradeId uint64 `bson:"_id" gorm:"primary_key"`
+	OrderId uint64 `bson:"orderId"`
+	Symbol  string
+	Type    string
+	Price   string
+	Amount  string
+	Total   string
+	Date    string
+	Role    string
+	Fee     map[string]string
 }
 
 type GateBalance struct {

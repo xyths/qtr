@@ -299,13 +299,12 @@ func (g *GateIO) MyTradeHistory(currencyPair string) (*MyTradeHistoryResult, err
 	method := "POST"
 	url := "/private/TradeHistory"
 	param := "orderNumber=&currencyPair=" + currencyPair
-	data, err := g.httpDo(method, url, param)
-	if err != nil {
-		return nil, err
-	}
 	var result MyTradeHistoryResult
-	err = json.Unmarshal(data, &result)
-	return &result, err
+	if err := g.request(method, url, param, &result); err != nil {
+		return nil, err
+	} else {
+		return &result, nil
+	}
 }
 
 // Get my last 24h trades
