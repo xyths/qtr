@@ -30,11 +30,13 @@ var (
 		BTC_USDT:   0.0001,
 		BTC3L_USDT: 0.001,
 		BTC3S_USDT: 0.001,
+		SERO_USDT:  0.001,
 	}
 	MinTotal = map[string]int64{
 		BTC_USDT:   1,
 		BTC3L_USDT: 1,
 		BTC3S_USDT: 1,
+		SERO_USDT:  1,
 	}
 )
 
