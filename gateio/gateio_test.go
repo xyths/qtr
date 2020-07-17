@@ -3,6 +3,7 @@ package gateio
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/shopspring/decimal"
 	"os"
 	"strconv"
 	"testing"
@@ -14,8 +15,9 @@ import (
 func TestGetPairs(t *testing.T) {
 	apiKey := os.Getenv("apiKey")
 	secretKey := os.Getenv("secretKey")
+	host := os.Getenv("host")
 	t.Logf("apiKey: %s, secretKey: %s", apiKey, secretKey)
-	gateio := New(apiKey, secretKey)
+	gateio := New(apiKey, secretKey, host)
 
 	if pairs, err := gateio.GetPairs(); err != nil {
 		t.Logf("error when GetPairs: %s", err)
@@ -28,8 +30,9 @@ func TestGetPairs(t *testing.T) {
 func TestTradeHistory(t *testing.T) {
 	apiKey := os.Getenv("apiKey")
 	secretKey := os.Getenv("secretKey")
+	host := os.Getenv("host")
 	t.Logf("apiKey: %s, secretKey: %s", apiKey, secretKey)
-	gateio := New(apiKey, secretKey)
+	gateio := New(apiKey, secretKey, host)
 	if history, err := gateio.TradeHistory("SERO_USDT"); err != nil {
 		t.Logf("error when TradeHistory: %s", err)
 	} else {
@@ -41,8 +44,9 @@ func TestTradeHistory(t *testing.T) {
 func TestGateIO_MyTradeHistory(t *testing.T) {
 	apiKey := os.Getenv("apiKey")
 	secretKey := os.Getenv("secretKey")
+	host := os.Getenv("host")
 	t.Logf("apiKey: %s, secretKey: %s", apiKey, secretKey)
-	gateio := New(apiKey, secretKey)
+	gateio := New(apiKey, secretKey, host)
 	if history, err := gateio.MyTradeHistory("SERO_USDT"); err != nil {
 		t.Logf("error when TradeHistory: %s", err)
 	} else {
@@ -60,8 +64,9 @@ func TestGateIO_MyTradeHistory(t *testing.T) {
 func TestGateIO_Candles(t *testing.T) {
 	apiKey := os.Getenv("apiKey")
 	secretKey := os.Getenv("secretKey")
+	host := os.Getenv("host")
 	t.Logf("apiKey: %s, secretKey: %s", apiKey, secretKey)
-	gateio := New(apiKey, secretKey)
+	gateio := New(apiKey, secretKey, host)
 	if candles, err := gateio.Candles("SERO_USDT", 60, 10); err != nil {
 		t.Logf("error when Candles: %s", err)
 	} else {
@@ -73,7 +78,8 @@ func TestGateIO_Candles(t *testing.T) {
 func TestGateIO_Balances(t *testing.T) {
 	apiKey := os.Getenv("apiKey")
 	secretKey := os.Getenv("secretKey")
-	gateio := New(apiKey, secretKey)
+	host := os.Getenv("host")
+	gateio := New(apiKey, secretKey, host)
 
 	balances, err := gateio.AvailableBalance()
 	if err != nil {
@@ -86,9 +92,12 @@ func TestGateIO_Balances(t *testing.T) {
 func TestGateIO_Buy(t *testing.T) {
 	apiKey := os.Getenv("apiKey")
 	secretKey := os.Getenv("secretKey")
-	gateio := New(apiKey, secretKey)
+	host := os.Getenv("host")
+	gateio := New(apiKey, secretKey, host)
 
-	res, err := gateio.Buy("SERO_USDT", 0.023456, 100.123456)
+	res, err := gateio.Buy("SERO_USDT",
+		decimal.NewFromFloat(0.023456), decimal.NewFromFloat(100.123456),
+		"normal", "test")
 	if err != nil {
 		t.Logf("error: %s", err)
 		return
@@ -100,8 +109,9 @@ func TestGateIO_Buy(t *testing.T) {
 func TestGateIO_GetOrder(t *testing.T) {
 	apiKey := os.Getenv("apiKey")
 	secretKey := os.Getenv("secretKey")
+	host := os.Getenv("host")
 	orderNumber, _ := strconv.Atoi(os.Getenv("orderNumber"))
-	gateio := New(apiKey, secretKey)
+	gateio := New(apiKey, secretKey, host)
 
 	res, err := gateio.GetOrder(uint64(orderNumber), "SERO_USDT")
 	if err != nil {
@@ -115,7 +125,8 @@ func TestGateIO_GetOrder(t *testing.T) {
 func TestGateIO_OpenOrders(t *testing.T) {
 	apiKey := os.Getenv("apiKey")
 	secretKey := os.Getenv("secretKey")
-	gateio := New(apiKey, secretKey)
+	host := os.Getenv("host")
+	gateio := New(apiKey, secretKey, host)
 
 	//_ = gateio
 	res, err := gateio.OpenOrders()
@@ -129,7 +140,8 @@ func TestGateIO_OpenOrders(t *testing.T) {
 func TestGateIO_Ticker(t *testing.T) {
 	apiKey := os.Getenv("apiKey")
 	secretKey := os.Getenv("secretKey")
-	gateio := New(apiKey, secretKey)
+	host := os.Getenv("host")
+	gateio := New(apiKey, secretKey, host)
 
 	//_ = gateio
 	res, err := gateio.Ticker("SERO_USDT")

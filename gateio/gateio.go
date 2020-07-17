@@ -275,6 +275,7 @@ func (g *GateIO) GetOrder(orderNumber uint64, currencyPair string) (order exchan
 	order.InitialAmount = decimal.RequireFromString(o.InitialAmount)
 	order.Status = o.Status
 	order.Rate = decimal.RequireFromString(o.Rate)
+	// amount maybe 0
 	order.Amount = decimal.RequireFromString(o.Amount)
 	//order.FilledRate=decimal.RequireFromString(o.FilledRate)
 	order.FilledAmount = decimal.RequireFromString(o.FilledAmount)

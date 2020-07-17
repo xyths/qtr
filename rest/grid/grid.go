@@ -594,6 +594,14 @@ func (r *RestGridTrader) updateOrder(ctx context.Context, id int, order uint64) 
 
 func (r *RestGridTrader) Broadcast(ctx context.Context, order exchange.Order) {
 	for _, robot := range r.robots {
-		robot.Broadcast([]string{r.config.Exchange.Label}, order.CurrencyPair, order.Type, order.Rate.String(), order.Amount.String(), order.Rate.Mul(order.Amount).String(), "-")
+		robot.Broadcast(
+			[]string{r.config.Exchange.Label},
+			order.CurrencyPair,
+			order.Type,
+			order.Rate.String(),
+			order.FilledAmount.String(),
+			order.Rate.Mul(order.FilledAmount).String(),
+			"-",
+		)
 	}
 }
