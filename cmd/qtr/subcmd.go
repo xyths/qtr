@@ -2,10 +2,12 @@ package main
 
 import (
 	"github.com/urfave/cli/v2"
+	"github.com/xyths/hs/logger"
 	"github.com/xyths/qtr/cmd/utils"
 	"github.com/xyths/qtr/history"
 	"github.com/xyths/qtr/node"
 	"github.com/xyths/qtr/rest/grid"
+	"github.com/xyths/qtr/ta/atr"
 )
 
 var (
@@ -34,6 +36,27 @@ var (
 				Flags: []cli.Flag{
 					utils.DryRunFlag,
 				},
+			},
+		},
+	}
+	taCommand = &cli.Command{
+		Name:  "ta",
+		Usage: "Technical analysis on cryptocurrency",
+		Flags: []cli.Flag{
+			utils.StartTimeFlag,
+			utils.EndTimeFlag,
+			utils.CsvFlag,
+		},
+		Subcommands: []*cli.Command{
+			{
+				Action: atrFunc,
+				Name:   "atr",
+				Usage:  "ATR(Average True Range)",
+			},
+			{
+				Action: boll,
+				Name:   "boll",
+				Usage:  "Bollinger Bands",
 			},
 		},
 	}
@@ -153,4 +176,18 @@ func snapshot(ctx *cli.Context) error {
 	n.Init(ctx.Context)
 	defer n.Close()
 	return n.Snapshot(ctx.Context, label)
+}
+
+func atrFunc(ctx *cli.Context) error {
+	start := ctx.String(utils.StartTimeFlag.Name)
+	end := ctx.String(utils.EndTimeFlag.Name)
+	startTime, endTime, err := utils.ParseStartEndTime(start, end)
+	if err != nil {
+		logger.Sugar.Fatal(err)
+	}
+	return atr.All("gate", []string{"BTC_USDT", "ETH_USDT", "EOS_USDT"}, startTime, endTime)
+}
+
+func boll(ctx *cli.Context) error {
+	return nil
 }

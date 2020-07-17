@@ -269,21 +269,36 @@ func (g *GateIO) GetOrder(orderNumber uint64, currencyPair string) (order exchan
 	}
 	o := &res.Order
 	order.OrderNumber = convert.StrToUint64(o.OrderNumber)
+	order.CurrencyPair = o.CurrencyPair
+	order.Type = o.Type
+	order.InitialRate = decimal.RequireFromString(o.InitialRate)
+	order.InitialAmount = decimal.RequireFromString(o.InitialAmount)
 	order.Status = o.Status
+	order.Rate = decimal.RequireFromString(o.Rate)
+	order.Amount = decimal.RequireFromString(o.Amount)
+	//order.FilledRate=decimal.RequireFromString(o.FilledRate)
 	order.FilledAmount = decimal.RequireFromString(o.FilledAmount)
+	order.FeePercentage = o.FeePercentage
+	order.FeeValue = decimal.RequireFromString(o.FeeValue)
+	order.Timestamp = o.Timestamp
 
 	return
 }
 
-func (g *GateIO) IsOrderClose(symbol string, order uint64) bool {
-	o, err := g.GetOrder(order, symbol)
+func (g *GateIO) IsOrderClose(symbol string, orderId uint64) (order exchange.Order, closed bool) {
+	o, err := g.GetOrder(orderId, symbol)
 	if err != nil {
-		return false
+		return o, false
 	}
 	if o.Status == OrderStatusClosed {
-		return true
+
+		return o, true
 	}
-	return false
+	return o, false
+}
+
+func (g *GateIO) Broadcast(order exchange.Order) {
+
 }
 
 // Get my open order list

@@ -3,10 +3,10 @@ package history
 import (
 	"context"
 	"encoding/csv"
-	"errors"
 	"fmt"
 	"github.com/xyths/hs"
-	. "github.com/xyths/hs/log"
+	. "github.com/xyths/hs/logger"
+	"github.com/xyths/qtr/cmd/utils"
 	"github.com/xyths/qtr/gateio"
 	"github.com/xyths/qtr/types"
 	"go.mongodb.org/mongo-driver/bson"
@@ -81,7 +81,7 @@ func (h *History) Pull(ctx context.Context) error {
 const collNameHistory = "history"
 
 func (h *History) getHistoryOnce(ctx context.Context) error {
-	history, err := h.ex.MyTradeHistory(h.config.Exchange.Symbols)
+	history, err := h.ex.MyTradeHistory(h.config.Exchange.Symbols[0])
 	if err != nil {
 		return err
 	}
@@ -131,7 +131,7 @@ func (h *History) getHistoryOnce(ctx context.Context) error {
 }
 
 func (h *History) Export(ctx context.Context, start, end, csvfile string) error {
-	startTime, endTime, err := parseTime(start, end)
+	startTime, endTime, err := utils.ParseStartEndTime(start, end)
 	if err != nil {
 		Sugar.Error(err)
 		return err
@@ -183,8 +183,8 @@ func (n *History) getUserTrades(ctx context.Context, start, end time.Time) (trad
 	coll := n.db.Collection(collNameHistory)
 	cursor, err := coll.Find(ctx, bson.D{
 		{"date", bson.D{
-			{"$gte", start.Format(layout)},
-			{"$lte", end.Format(layout)},
+			{"$gte", start.Format(utils.TimeLayout)},
+			{"$lte", end.Format(utils.TimeLayout)},
 		}},
 	})
 	if err != nil {
@@ -192,29 +192,5 @@ func (n *History) getUserTrades(ctx context.Context, start, end time.Time) (trad
 	}
 	err = cursor.All(ctx, &trades)
 
-	return
-}
-
-const layout = "2006-01-02 15:04:05"
-
-func parseTime(start, end string) (startTime, endTime time.Time, err error) {
-	secondsEastOfUTC := int((8 * time.Hour).Seconds())
-	beijing := time.FixedZone("Beijing Time", secondsEastOfUTC)
-
-	startTime, err = time.ParseInLocation(layout, start, beijing)
-	if err != nil {
-		log.Printf("error start format: %s", start)
-		return
-	}
-	endTime, err = time.ParseInLocation(layout, end, beijing)
-	if err != nil {
-		log.Printf("error end format: %s", end)
-		return
-	}
-	if !startTime.Before(endTime) {
-		err = errors.New(fmt.Sprintf("start time(%s) must before end time(%s)", startTime.String(), endTime.String()))
-		log.Println(err)
-		return
-	}
 	return
 }

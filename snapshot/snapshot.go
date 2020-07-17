@@ -3,7 +3,7 @@ package snapshot
 import (
 	"context"
 	"github.com/xyths/hs"
-	. "github.com/xyths/hs/log"
+	. "github.com/xyths/hs/logger"
 )
 
 type Config struct {

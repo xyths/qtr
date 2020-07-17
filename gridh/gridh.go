@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/shopspring/decimal"
 	"github.com/xyths/hs"
-	. "github.com/xyths/hs/log"
+	. "github.com/xyths/hs/logger"
 	"github.com/xyths/qtr/gateio"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -121,7 +121,7 @@ func (t *Trader) Print(ctx context.Context) error {
 
 func (t *Trader) initEx(ctx context.Context) {
 	t.ex = gateio.New(t.config.Exchange.Key, t.config.Exchange.Secret, t.config.Exchange.Host)
-	if t.config.Exchange.Symbols == "btc3l_usdt|btc3s_usdt" {
+	if t.config.Exchange.Symbols[0] == "btc3l_usdt" && t.config.Exchange.Symbols[1] == "btc3s_usdt" {
 		t.longSymbol = gateio.BTC3L_USDT
 		t.shortSymbol = gateio.BTC3S_USDT
 		t.quoteCurrency = "USDT"
@@ -411,9 +411,11 @@ func (t *Trader) checkOrdersOneSide(ctx context.Context, symbol string, base int
 			"symbol", symbol,
 			"direct", "sell",
 			"order", grids[top].Order)
-		if grids[top].Order != 0 && t.ex.IsOrderClose(symbol, grids[top].Order) {
-			go t.up(ctx, symbol)
-			return
+		if grids[top].Order != 0 {
+			if _, closed := t.ex.IsOrderClose(symbol, grids[top].Order); closed {
+				go t.up(ctx, symbol)
+				return
+			}
 		}
 	}
 
@@ -424,8 +426,10 @@ func (t *Trader) checkOrdersOneSide(ctx context.Context, symbol string, base int
 			"symbol", symbol,
 			"direct", "buy",
 			"order", grids[bottom].Order)
-		if grids[bottom].Order != 0 && t.ex.IsOrderClose(symbol, grids[bottom].Order) {
-			go t.down(ctx, symbol)
+		if grids[bottom].Order != 0 {
+			if _, closed := t.ex.IsOrderClose(symbol, grids[bottom].Order); closed {
+				go t.down(ctx, symbol)
+			}
 		}
 	}
 }

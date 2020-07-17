@@ -20,9 +20,9 @@ type Order struct {
 	FilledAmount decimal.Decimal
 
 	FeePercentage float64
-	FeeValue      float64
+	FeeValue      decimal.Decimal
 	FeeCurrency   string
-	Fee           float64
+	Fee           decimal.Decimal
 
 	Timestamp int64
 }

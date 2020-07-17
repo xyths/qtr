@@ -76,8 +76,8 @@ type ResponseCancel struct {
 type RawOrderInGetOrder struct {
 	OrderNumber  string
 	Status       string // 订单状态 open已挂单 cancelled已取消 closed已完成
-	CurrencyPair string
-	Type         string
+	CurrencyPair string `json:"currencyPair"`
+	Type         string // sell, buy
 
 	Rate          string // 价格
 	Amount        string // 买卖数量
