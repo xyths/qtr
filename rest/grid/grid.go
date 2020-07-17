@@ -13,6 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"log"
 	"math"
+	"strings"
 	"time"
 )
 
@@ -593,14 +594,24 @@ func (r *RestGridTrader) updateOrder(ctx context.Context, id int, order uint64) 
 }
 
 func (r *RestGridTrader) Broadcast(ctx context.Context, order exchange.Order) {
+	secondsEastOfUTC := int((8 * time.Hour).Seconds())
+	beijing := time.FixedZone("Beijing Time", secondsEastOfUTC)
+	layout := "2006-01-02 15:04:05"
+	labels := []string{"Gate", r.config.Exchange.Label}
+	symbolStr := strings.ToUpper(order.CurrencyPair)
+	timeStr := time.Unix(order.Timestamp, 0).In(beijing).Format(layout)
+	priceStr := order.Rate.String()
+	amountStr := order.FilledAmount.String()
+	totalStr := order.Rate.Mul(order.FilledAmount).String()
 	for _, robot := range r.robots {
 		robot.Broadcast(
-			[]string{r.config.Exchange.Label},
-			order.CurrencyPair,
+			labels,
+			symbolStr,
+			timeStr,
 			order.Type,
-			order.Rate.String(),
-			order.FilledAmount.String(),
-			order.Rate.Mul(order.FilledAmount).String(),
+			priceStr,
+			amountStr,
+			totalStr,
 			"-",
 		)
 	}
