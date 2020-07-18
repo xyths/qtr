@@ -533,7 +533,8 @@ func (r *RestGridTrader) checkOrders(ctx context.Context) {
 		if r.grids[top].Order != 0 {
 			if order, closed := r.ex.IsOrderClose(r.symbol, r.grids[top].Order); closed {
 				go r.up(ctx)
-				go r.Broadcast(ctx, order)
+				profit := r.grids[top].Price.Mul(r.grids[top].AmountSell).Sub(r.grids[top+1].TotalBuy).String()
+				go r.Broadcast(ctx, order, profit)
 				return
 			}
 		}
@@ -549,7 +550,7 @@ func (r *RestGridTrader) checkOrders(ctx context.Context) {
 		if r.grids[bottom].Order != 0 {
 			if order, closed := r.ex.IsOrderClose(r.symbol, r.grids[bottom].Order); closed {
 				go r.down(ctx)
-				go r.Broadcast(ctx, order)
+				go r.Broadcast(ctx, order, "-")
 			}
 		}
 	}
@@ -593,13 +594,13 @@ func (r *RestGridTrader) updateOrder(ctx context.Context, id int, order uint64) 
 	return err
 }
 
-func (r *RestGridTrader) Broadcast(ctx context.Context, order exchange.Order) {
+func (r *RestGridTrader) Broadcast(ctx context.Context, order exchange.Order, profit string) {
 	secondsEastOfUTC := int((8 * time.Hour).Seconds())
 	beijing := time.FixedZone("Beijing Time", secondsEastOfUTC)
 	layout := "2006-01-02 15:04:05"
 	labels := []string{"Gate", r.config.Exchange.Label}
 	symbolStr := strings.ToUpper(order.CurrencyPair)
-	timeStr := time.Unix(order.Timestamp, 0).In(beijing).Format(layout)
+	timeStr := time.Now().In(beijing).Format(layout)
 	priceStr := order.Rate.String()
 	amountStr := order.FilledAmount.String()
 	totalStr := order.Rate.Mul(order.FilledAmount).String()
@@ -612,7 +613,7 @@ func (r *RestGridTrader) Broadcast(ctx context.Context, order exchange.Order) {
 			priceStr,
 			amountStr,
 			totalStr,
-			"-",
+			profit,
 		)
 	}
 }
