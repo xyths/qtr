@@ -138,10 +138,18 @@ type ResponseTicker struct {
 	Low24hr       string // 24小时最低价
 }
 
-type RawCandle [6]string
+type RawCandle [6]float64
 
 type ResponseCandles struct {
 	Result  string // true
 	Elapsed string
 	Data    []RawCandle
+}
+
+type Quote [2]float64
+
+type ResponseOrderBook struct {
+	Result string
+	Asks   []Quote
+	Bids   []Quote
 }

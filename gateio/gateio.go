@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"github.com/shopspring/decimal"
+	"github.com/xyths/hs"
 	"github.com/xyths/hs/convert"
 	"github.com/xyths/qtr/exchange"
 	"io/ioutil"
@@ -101,6 +102,14 @@ func (g *GateIO) Ticker(currencyPair string) (*exchange.Ticker, error) {
 	return ticker, nil
 }
 
+func (g *GateIO) LastPrice(symbol string) (decimal.Decimal, error) {
+	ticker, err := g.Ticker(symbol)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	return ticker.Last, nil
+}
+
 //// Depth
 //func (g *GateIO) orderBooks() string {
 //	var method string = "GET"
@@ -109,16 +118,17 @@ func (g *GateIO) Ticker(currencyPair string) (*exchange.Ticker, error) {
 //	var ret string = g.httpDo(method, url, param)
 //	return ret
 //}
-//
-//// Depth of pair
-//func (g *GateIO) orderBook(params string) string {
-//	var method string = "GET"
-//	url := "/orderBook/" + params
-//	param := ""
-//	var ret string = g.httpDo(method, url, param)
-//	return ret
-//}
-//
+
+// Depth of pair
+func (g *GateIO) OrderBook(symbol string) (ResponseOrderBook, error) {
+	var method string = "GET"
+	url := "/orderBook/" + symbol
+	param := ""
+
+	var result ResponseOrderBook
+	err := g.request(method, url, param, &result)
+	return result, err
+}
 
 // 获取Candle
 func (g *GateIO) Candles(currencyPair string, groupSec, rangeHour int) (candles []exchange.Candle, err error) {
@@ -132,12 +142,37 @@ func (g *GateIO) Candles(currencyPair string, groupSec, rangeHour int) (candles 
 	}
 	for _, c := range result.Data {
 		candles = append(candles, exchange.Candle{
-			Timestamp: convert.StrToUint64(c[0]),
-			Volume:    decimal.RequireFromString(c[1]),
-			Close:     decimal.RequireFromString(c[2]),
-			High:      decimal.RequireFromString(c[3]),
-			Low:       decimal.RequireFromString(c[4]),
-			Open:      decimal.RequireFromString(c[5]),
+			Timestamp: uint64(c[0]),
+			Volume:    decimal.NewFromFloat(c[1]),
+			Close:     decimal.NewFromFloat(c[2]),
+			High:      decimal.NewFromFloat(c[3]),
+			Low:       decimal.NewFromFloat(c[4]),
+			Open:      decimal.NewFromFloat(c[5]),
+		})
+	}
+	return
+}
+
+// 获取Candle
+func (g *GateIO) GetCandle(symbol string, groupSec, rangeHour int) (candles hs.Candle, err error) {
+	url := fmt.Sprintf("/candlestick2/%s?group_sec=%d&range_hour=%d", symbol, groupSec, rangeHour)
+	param := ""
+
+	var result ResponseCandles
+	err = g.request(GET, url, param, &result)
+	if err != nil {
+		return candles, err
+	}
+	candles = hs.NewCandle(300)
+	for i := len(result.Data) - 1; i >= 0; i-- {
+		c := result.Data[i]
+		candles.Append(hs.Ticker{
+			Timestamp: int64(c[0]),
+			Volume:    c[1],
+			Close:     c[2],
+			High:      c[3],
+			Low:       c[4],
+			Open:      c[5],
 		})
 	}
 	return
@@ -201,6 +236,7 @@ func (g *GateIO) AvailableBalance() (map[string]decimal.Decimal, error) {
 //}
 //
 
+// 订单类型("gtc"：普通订单（默认）；“ioc”：立即执行否则取消订单（Immediate-Or-Cancel，IOC）；"poc":被动委托（只挂单，不吃单）（Pending-Or-Cancelled，POC）)
 // Place order buy
 func (g *GateIO) Buy(symbol string, price, amount decimal.Decimal, orderType, text string) (orderId uint64, err error) {
 	resp, err := g.BuyOrder(symbol, price, amount, orderType, text)

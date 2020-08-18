@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/require"
 	"os"
 	"strconv"
 	"testing"
@@ -58,6 +59,21 @@ func TestGateIO_MyTradeHistory(t *testing.T) {
 		}
 		t.Logf("MyTradeHistory(\"SERO_USDT\", \"\"): %s", buf.String())
 	}
+}
+
+// apiKey=xxx secretKey=yyy go test -v -run TestGateIO_OrderBook ./gateio
+func TestGateIO_OrderBook(t *testing.T) {
+	apiKey := os.Getenv("apiKey")
+	secretKey := os.Getenv("secretKey")
+	host := os.Getenv("host")
+	t.Logf("apiKey: %s, secretKey: %s", apiKey, secretKey)
+	gateio := New(apiKey, secretKey, host)
+	orderBook, err := gateio.OrderBook("btc_usdt")
+	require.NoError(t, err)
+	t.Log(orderBook)
+	s1p, s1a := Sell1(orderBook.Asks)
+	b1p, b1a := Buy1(orderBook.Bids)
+	t.Logf("sell1: %f, %f, buy1: %f, %f", s1p, s1a, b1p, b1a)
 }
 
 // apiKey=xxx secretKey=yyy go test -v -run TestGateIO_Candles ./gateio

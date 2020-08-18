@@ -128,6 +128,7 @@ func (r *RestGridTrader) initGrids(ctx context.Context) {
 		r.grids[i-1].AmountSell = amountBuy
 	}
 }
+
 func (r *RestGridTrader) initRobots(ctx context.Context) {
 	for _, conf := range r.config.Robots {
 		r.robots = append(r.robots, broadcast.New(conf))
