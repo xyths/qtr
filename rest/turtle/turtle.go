@@ -105,10 +105,16 @@ func (t *Trader) Print(ctx context.Context) error {
 	return nil
 }
 
+func (t *Trader) Clear(ctx context.Context) error {
+	t.clearState(ctx)
+	// always success
+	return nil
+}
+
 func (t *Trader) Start(ctx context.Context) error {
-	if !t.loadPosition(ctx) {
+	if !t.loadState(ctx) {
 		t.getPosition(ctx)
-		t.savePosition(ctx)
+		t.saveState(ctx)
 	}
 
 	t.doWork(ctx)
@@ -129,6 +135,7 @@ func (t *Trader) doWork(ctx context.Context) {
 	candle, err := t.ex.GetCandle(t.symbol, int(t.interval)/1000000000, int(300*t.interval/time.Hour)-1)
 	if err != nil {
 		logger.Sugar.Errorf("get candle error: %s", err)
+		return
 	}
 	//for i := 0; i < candle.Length(); i++ {
 	//	logger.Sugar.Debugf("[%d] %d, %f, %f, %f, %f, %f",
@@ -187,10 +194,12 @@ func (t *Trader) doWork(ctx context.Context) {
 		if t.state.Position > 0 && t.state.BuyTimes < t.config.Strategy.MaxTimes {
 			logger.Sugar.Info("目前是持仓，开始加仓")
 			signal = true
+			t.state.LastBuyPrice = candle.High[l-1]
 			t.addPosition(ctx, atr)
 		} else if t.state.Position == 0 {
 			logger.Sugar.Info("目前是空仓，无需操作")
 		} else {
+			t.state.LastBuyPrice = candle.High[l-1]
 			logger.Sugar.Info("目前是满仓，无需操作")
 		}
 	}
@@ -198,7 +207,7 @@ func (t *Trader) doWork(ctx context.Context) {
 
 const collName = "position"
 
-func (t *Trader) loadPosition(ctx context.Context) bool {
+func (t *Trader) loadState(ctx context.Context) bool {
 	coll := t.db.Collection(collName)
 	if err := coll.FindOne(ctx, bson.D{}).Decode(&t.state); err == mongo.ErrNoDocuments {
 		//logger.Sugar.Errorf("load Position error: %s",err)
@@ -209,11 +218,8 @@ func (t *Trader) loadPosition(ctx context.Context) bool {
 	return true
 }
 
-func (t *Trader) savePosition(ctx context.Context) {
+func (t *Trader) saveState(ctx context.Context) {
 	coll := t.db.Collection(collName)
-	//if _, err := coll.InsertOne(ctx, t.state); err != nil {
-	//	logger.Sugar.Errorf("save state error: %s", err)
-	//}
 	option := &options.UpdateOptions{}
 	option.SetUpsert(true)
 	if _, err := coll.UpdateOne(ctx,
@@ -232,6 +238,14 @@ func (t *Trader) savePosition(ctx context.Context) {
 		option,
 	); err != nil {
 		logger.Sugar.Errorf("save state error: %s", err)
+	}
+}
+
+// clearState will drop state table
+func (t *Trader) clearState(ctx context.Context) {
+	coll := t.db.Collection(collName)
+	if err := coll.Drop(ctx); err != nil {
+		logger.Sugar.Errorf("drop table error: %s", err)
 	}
 }
 
@@ -300,7 +314,7 @@ func (t *Trader) openPosition(ctx context.Context, N float64) {
 	t.state.BuyTimes++
 	t.state.LastBuyPrice, _ = price.Float64()
 	t.state.LastModified = time.Now()
-	t.savePosition(ctx)
+	t.saveState(ctx)
 }
 
 func (t *Trader) addPosition(ctx context.Context, N float64) {
@@ -346,8 +360,11 @@ func (t *Trader) addPosition(ctx context.Context, N float64) {
 	}
 	logger.Sugar.Infof("加仓，订单号: %d / %s", orderId, clientId)
 
+	t.state.Position++
 	t.state.BuyTimes++
-	t.savePosition(ctx)
+	t.state.LastBuyPrice, _ = price.Float64()
+	t.state.LastModified = time.Now()
+	t.saveState(ctx)
 }
 
 func (t *Trader) clearPosition(ctx context.Context) {
@@ -385,5 +402,6 @@ func (t *Trader) clearPosition(ctx context.Context) {
 	t.state.SellTimes++
 	t.state.Position = 0
 	t.state.LastBuyPrice = 0
-	t.savePosition(ctx)
+	t.state.LastModified = time.Now()
+	t.saveState(ctx)
 }
