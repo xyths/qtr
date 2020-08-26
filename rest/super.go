@@ -39,6 +39,7 @@ type SuperTrendTrader struct {
 
 	quoteCurrency string // cash, eg. USDT
 	baseSymbol    string
+	maxTotal      decimal.Decimal // max total for buy order, half total in config
 
 	longSymbol           string
 	longCurrency         string
@@ -73,6 +74,7 @@ func NewSuperTrendTrader(configFilename string) *SuperTrendTrader {
 	return &SuperTrendTrader{
 		config:   cfg,
 		interval: interval,
+		maxTotal: decimal.NewFromFloat(cfg.Strategy.Total / 2),
 	}
 }
 
@@ -102,20 +104,20 @@ func (s *SuperTrendTrader) Clear(ctx context.Context) error {
 	return nil
 }
 
-func (s *SuperTrendTrader) Start(ctx context.Context) error {
+func (s *SuperTrendTrader) Start(ctx context.Context, dry bool) error {
 	//if !s.loadState(ctx) {
 	//	s.getPosition(ctx)
 	//	s.saveState(ctx)
 	//}
 
-	s.doWork(ctx)
+	s.doWork(ctx, dry)
 	for {
 		select {
 		case <-ctx.Done():
 			logger.Sugar.Info("SuperTrend trader stopped")
 			return nil
 		case <-time.After(s.interval):
-			s.doWork(ctx)
+			s.doWork(ctx, dry)
 		}
 	}
 }
@@ -183,24 +185,24 @@ func (s *SuperTrendTrader) initEx(ctx context.Context) {
 	s.longAmountPrecision = int32(gateio.AmountPrecision[s.longSymbol])
 	s.longMinAmount = decimal.NewFromFloat(gateio.MinAmount[s.longSymbol])
 	s.longMinTotal = decimal.NewFromInt(gateio.MinTotal[s.longSymbol])
-	logger.Sugar.Debugf("init long symbol, pricePrecision = %d, amountPrecision = %d, minAmount = %s, minTotal = %s",
-		s.longPricePrecision, s.longAmountPrecision, s.longMinAmount.String(), s.longMinTotal.String())
+	logger.Sugar.Debugf("init long symbol %s, pricePrecision = %d, amountPrecision = %d, minAmount = %s, minTotal = %s",
+		s.longSymbol, s.longPricePrecision, s.longAmountPrecision, s.longMinAmount.String(), s.longMinTotal.String())
 
 	s.shortPricePrecision = int32(gateio.PricePrecision[s.shortSymbol])
 	s.shortAmountPrecision = int32(gateio.AmountPrecision[s.shortSymbol])
 	s.shortMinAmount = decimal.NewFromFloat(gateio.MinAmount[s.shortSymbol])
 	s.shortMinTotal = decimal.NewFromInt(gateio.MinTotal[s.shortSymbol])
-	logger.Sugar.Debugf("init short symbol, pricePrecision = %d, amountPrecision = %d, minAmount = %s, minTotal = %s",
-		s.shortPricePrecision, s.shortAmountPrecision, s.shortMinAmount.String(), s.shortMinTotal.String())
-
+	logger.Sugar.Debugf("init short symbol %s, pricePrecision = %d, amountPrecision = %d, minAmount = %s, minTotal = %s",
+		s.shortSymbol, s.shortPricePrecision, s.shortAmountPrecision, s.shortMinAmount.String(), s.shortMinTotal.String())
 }
+
 func (s *SuperTrendTrader) initRobots(ctx context.Context) {
 	for _, conf := range s.config.Robots {
 		s.robots = append(s.robots, broadcast.New(conf))
 	}
 }
 
-func (s *SuperTrendTrader) doWork(ctx context.Context) {
+func (s *SuperTrendTrader) doWork(ctx context.Context, dry bool) {
 	candle, err := s.ex.GetCandle(s.baseSymbol, int(s.interval)/1000000000, int(300*s.interval/time.Hour)-1)
 	if err != nil {
 		logger.Sugar.Errorf("get candle error: %s", err)
@@ -214,16 +216,28 @@ func (s *SuperTrendTrader) doWork(ctx context.Context) {
 	}
 	if trend[l-1] && !trend[l-2] {
 		// false -> true, buy/long
-		s.long(ctx)
+		logger.Sugar.Info("[Sginal] BUY")
+		if !dry {
+			s.long(ctx)
+		}
 	} else if !trend[l-1] && trend[l-2] {
 		// true -> false, sell/short
-		s.short(ctx)
+		logger.Sugar.Info("[Sginal] SELL")
+		if !dry {
+			s.short(ctx)
+		}
 	} else if s.LongTimes == 0 && s.ShortTimes == 0 && trend[l-1] {
 		// first time, try buy
-		s.long(ctx)
+		logger.Sugar.Info("init process, in BUY signal period")
+		if !dry {
+			s.long(ctx)
+		}
 	} else if s.LongTimes == 0 && s.ShortTimes == 0 && !trend[l-1] {
 		// first time, try sell
-		s.short(ctx)
+		logger.Sugar.Info("init process, in SELL signal period")
+		if !dry {
+			s.short(ctx)
+		}
 	}
 }
 
@@ -264,8 +278,12 @@ func (s *SuperTrendTrader) buy(ctx context.Context, symbol string, amountPrecisi
 	// taker
 	s1, _ := gateio.Sell1(ob.Asks)
 	price := decimal.NewFromFloat(s1)
-	// sell all balance
-	amount := balance[s.quoteCurrency].Div(price).Round(amountPrecision)
+	// buy half balance
+	maxTotal := balance[s.quoteCurrency]
+	if maxTotal.GreaterThan(s.maxTotal) {
+		maxTotal = s.maxTotal
+	}
+	amount := maxTotal.Div(price).Round(amountPrecision)
 	total := price.Mul(amount)
 	for total.GreaterThan(balance[s.quoteCurrency]) {
 		amount = amount.Sub(minAmount)

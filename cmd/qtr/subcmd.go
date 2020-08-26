@@ -76,7 +76,13 @@ var (
 				Action: superTrendClear,
 				Name:   "clear",
 				Usage:  "clear all SuperTrend state in database, cancel pending orders",
+				Flags: []cli.Flag{
+					utils.DryRunFlag,
+				},
 			},
+		},
+		Flags: []cli.Flag{
+			utils.DryRunFlag,
 		},
 	}
 	taCommand = &cli.Command{
@@ -284,10 +290,11 @@ func turtleClearAction(ctx *cli.Context) error {
 
 func superTrend(ctx *cli.Context) error {
 	configFile := ctx.String(utils.ConfigFlag.Name)
+	dry := ctx.Bool(utils.DryRunFlag.Name)
 	t := rest.NewSuperTrendTrader(configFile)
 	t.Init(ctx.Context)
 	defer t.Close(ctx.Context)
-	return t.Start(ctx.Context)
+	return t.Start(ctx.Context, dry)
 }
 
 func superTrendPrint(ctx *cli.Context) error {
