@@ -54,6 +54,7 @@ type SuperTrendTrader struct {
 	shortMinAmount       decimal.Decimal
 	shortMinTotal        decimal.Decimal
 
+	trend      int
 	orderId    string
 	position   int
 	LongTimes  int
@@ -209,32 +210,38 @@ func (s *SuperTrendTrader) doWork(ctx context.Context, dry bool) {
 		return
 	}
 
-	_, trend := indicator.SuperTrend(s.config.Strategy.Factor, s.config.Strategy.Period, candle.High, candle.Low, candle.Close)
+	tsl, trend := indicator.SuperTrend(s.config.Strategy.Factor, s.config.Strategy.Period, candle.High, candle.Low, candle.Close)
 	l := len(trend)
 	if l < 2 {
 		return
 	}
-	if trend[l-1] && !trend[l-2] {
+	logger.Sugar.Debugf("SuperTrend = [..., (%f, %v), (%f, %v)", tsl[l-2], trend[l-2], tsl[l-1], trend[l-1])
+
+	if trend[l-1] && !trend[l-2] || trend[l-1] && s.trend == -1 {
 		// false -> true, buy/long
 		logger.Sugar.Info("[Sginal] BUY")
+		s.trend = 1
 		if !dry {
 			s.long(ctx)
 		}
-	} else if !trend[l-1] && trend[l-2] {
+	} else if !trend[l-1] && trend[l-2] || !trend[l-1] && s.trend == 1 {
 		// true -> false, sell/short
 		logger.Sugar.Info("[Sginal] SELL")
+		s.trend = -1
 		if !dry {
 			s.short(ctx)
 		}
-	} else if s.LongTimes == 0 && s.ShortTimes == 0 && trend[l-1] {
+	} else if s.trend == 0 && trend[l-1] {
 		// first time, try buy
 		logger.Sugar.Info("init process, in BUY signal period")
+		s.trend = 1
 		if !dry {
 			s.long(ctx)
 		}
-	} else if s.LongTimes == 0 && s.ShortTimes == 0 && !trend[l-1] {
+	} else if s.trend == 0 && !trend[l-1] {
 		// first time, try sell
 		logger.Sugar.Info("init process, in SELL signal period")
+		s.trend = -1
 		if !dry {
 			s.short(ctx)
 		}
