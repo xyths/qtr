@@ -409,8 +409,8 @@ github.com/xyths/dingtalk-webhook v0.1.0 h1:XowRDJH2pxCS8cW9wRlD+ZRN23GdgYZNFFWw
 github.com/xyths/dingtalk-webhook v0.1.0/go.mod h1:MDesF3tQxWfkv7zBlAtWPVrG1hyVF6Sa5HpOjzsVD1k=
 github.com/xyths/go-indicators v0.1.0 h1:TeRkcmPaUps4KH6ism7yV3yrpa4RZAjfQY6umJ53K9Y=
 github.com/xyths/go-indicators v0.1.0/go.mod h1:QVOstYBvJTBiO7ipGLpqPOxAPQL7uK5CnIhZIuFUiL4=
-github.com/xyths/hs v0.9.4 h1:RGdAw2gx86XtICUX61LNABMg3eW0koC1SP4sR6YsI6c=
-github.com/xyths/hs v0.9.4/go.mod h1:1duNgVTM5ELVbClHd2yVG5t09mOYbsCUsiZxojcDv8s=
+github.com/xyths/hs v0.10.9 h1:yrZDpfJc8E6bFdIVQr4Jxl/pV8kBQxumcD0kVWBZIyE=
+github.com/xyths/hs v0.10.9/go.mod h1:1duNgVTM5ELVbClHd2yVG5t09mOYbsCUsiZxojcDv8s=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.mongodb.org/mongo-driver v1.3.2 h1:IYppNjEV/C+/3VPbhHVxQ4t04eVW0cLp0/pNdW++6Ug=
 go.mongodb.org/mongo-driver v1.3.2/go.mod h1:MSWZXKOynuguX+JSvwP8i+58jYCXxbia8HS3gZBapIE=

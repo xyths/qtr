@@ -8,8 +8,9 @@ import (
 	"github.com/xyths/go-indicators"
 	"github.com/xyths/hs"
 	"github.com/xyths/hs/broadcast"
+	"github.com/xyths/hs/exchange/gateio"
+	"github.com/xyths/hs/exchange/huobi"
 	"github.com/xyths/hs/logger"
-	"github.com/xyths/qtr/gateio"
 	"go.mongodb.org/mongo-driver/mongo"
 	"strings"
 	"time"
@@ -34,7 +35,7 @@ type SuperTrendTrader struct {
 	interval time.Duration
 
 	db     *mongo.Database
-	ex     *gateio.GateIO
+	ex     hs.RestAPIExchange
 	robots []broadcast.Broadcaster
 
 	quoteCurrency string // cash, eg. USDT
@@ -53,6 +54,9 @@ type SuperTrendTrader struct {
 	shortAmountPrecision int32
 	shortMinAmount       decimal.Decimal
 	shortMinTotal        decimal.Decimal
+
+	buyOrderType  string
+	sellOrderType string
 
 	trend      int
 	orderId    string
@@ -124,6 +128,18 @@ func (s *SuperTrendTrader) Start(ctx context.Context, dry bool) error {
 }
 
 func (s *SuperTrendTrader) initEx(ctx context.Context) {
+	switch s.config.Exchange.Name {
+	case "gate":
+		s.initGate(ctx)
+	case "huobi":
+		s.initHuobi(ctx)
+	default:
+		logger.Sugar.Fatalf("unsupport exchange")
+	}
+	s.initLimits()
+}
+
+func (s *SuperTrendTrader) initGate(ctx context.Context) {
 	s.ex = gateio.New(s.config.Exchange.Key, s.config.Exchange.Secret, s.config.Exchange.Host)
 	switch s.config.Exchange.Symbols[0] {
 	case "btc3l_usdt":
@@ -181,20 +197,55 @@ func (s *SuperTrendTrader) initEx(ctx context.Context) {
 		s.shortSymbol = gateio.BTC_USDT
 		s.shortCurrency = gateio.BTC
 	}
+}
 
-	s.longPricePrecision = int32(gateio.PricePrecision[s.longSymbol])
-	s.longAmountPrecision = int32(gateio.AmountPrecision[s.longSymbol])
-	s.longMinAmount = decimal.NewFromFloat(gateio.MinAmount[s.longSymbol])
-	s.longMinTotal = decimal.NewFromInt(gateio.MinTotal[s.longSymbol])
+func (s *SuperTrendTrader) initHuobi(ctx context.Context) {
+	s.ex = huobi.New(s.config.Exchange.Label, s.config.Exchange.Key, s.config.Exchange.Secret, s.config.Exchange.Host)
+	switch s.config.Exchange.Symbols[0] {
+	case "btc_usdt":
+		s.baseSymbol = huobi.BTC_USDT
+		s.quoteCurrency = huobi.USDT
+	default:
+		s.baseSymbol = "btc_usdt"
+	}
+
+	longSymbol := s.config.Exchange.Symbols[0]
+	shortSymbol := s.config.Exchange.Symbols[0]
+	if len(s.config.Exchange.Symbols) >= 2 {
+		longSymbol = s.config.Exchange.Symbols[1]
+	}
+	if len(s.config.Exchange.Symbols) >= 3 {
+		shortSymbol = s.config.Exchange.Symbols[2]
+	}
+	switch longSymbol {
+	case "btc_usdt":
+		s.longSymbol = huobi.BTC_USDT
+		s.longCurrency = huobi.BTC
+	default:
+		s.longSymbol = huobi.BTC_USDT
+		s.longCurrency = huobi.BTC
+	}
+	switch shortSymbol {
+	case "btc_usdt":
+		s.shortSymbol = huobi.BTC_USDT
+		s.shortCurrency = huobi.BTC
+	default:
+		s.shortSymbol = huobi.BTC_USDT
+		s.shortCurrency = huobi.BTC
+	}
+}
+
+func (s *SuperTrendTrader) initLimits() {
+	s.longPricePrecision, s.longAmountPrecision, s.longMinAmount, s.longMinTotal = s.getLimits(s.longSymbol)
 	logger.Sugar.Debugf("init long symbol %s, pricePrecision = %d, amountPrecision = %d, minAmount = %s, minTotal = %s",
 		s.longSymbol, s.longPricePrecision, s.longAmountPrecision, s.longMinAmount.String(), s.longMinTotal.String())
-
-	s.shortPricePrecision = int32(gateio.PricePrecision[s.shortSymbol])
-	s.shortAmountPrecision = int32(gateio.AmountPrecision[s.shortSymbol])
-	s.shortMinAmount = decimal.NewFromFloat(gateio.MinAmount[s.shortSymbol])
-	s.shortMinTotal = decimal.NewFromInt(gateio.MinTotal[s.shortSymbol])
+	s.shortPricePrecision, s.shortAmountPrecision, s.shortMinAmount, s.shortMinTotal = s.getLimits(s.shortSymbol)
 	logger.Sugar.Debugf("init short symbol %s, pricePrecision = %d, amountPrecision = %d, minAmount = %s, minTotal = %s",
 		s.shortSymbol, s.shortPricePrecision, s.shortAmountPrecision, s.shortMinAmount.String(), s.shortMinTotal.String())
+}
+
+func (s SuperTrendTrader) getLimits(symbol string) (pricePrecision, amountPrecision int32, minAmount, minTotal decimal.Decimal) {
+	return s.ex.PricePrecision(symbol), s.ex.AmountPrecision(symbol), s.ex.MinAmount(symbol), s.ex.MinTotal(symbol)
 }
 
 func (s *SuperTrendTrader) initRobots(ctx context.Context) {
@@ -204,13 +255,17 @@ func (s *SuperTrendTrader) initRobots(ctx context.Context) {
 }
 
 func (s *SuperTrendTrader) doWork(ctx context.Context, dry bool) {
-	candle, err := s.ex.GetCandle(s.baseSymbol, int(s.interval)/1000000000, int(300*s.interval/time.Hour)-1)
+	candle, err := s.ex.Candle(s.baseSymbol, s.interval, 2000)
 	if err != nil {
 		logger.Sugar.Errorf("get candle error: %s", err)
 		return
 	}
 
 	tsl, trend := indicator.SuperTrend(s.config.Strategy.Factor, s.config.Strategy.Period, candle.High, candle.Low, candle.Close)
+	//for i := 0; i < candle.Length(); i++ {
+	//	logger.Sugar.Debugf("[%d] %s %f %f %f %f, %f, %v",
+	//		i, timestampToDate(candle.Timestamp[i]), candle.Open[i], candle.High[i], candle.Low[i], candle.Close[i], tsl[i], trend[i])
+	//}
 	l := len(trend)
 	if l < 2 {
 		return
@@ -219,32 +274,21 @@ func (s *SuperTrendTrader) doWork(ctx context.Context, dry bool) {
 
 	if trend[l-1] && !trend[l-2] || trend[l-1] && s.trend == -1 {
 		// false -> true, buy/long
-		logger.Sugar.Info("[Sginal] BUY")
-		s.trend = 1
+		logger.Sugar.Info("[Signal] BUY")
 		if !dry {
 			s.long(ctx)
 		}
 	} else if !trend[l-1] && trend[l-2] || !trend[l-1] && s.trend == 1 {
 		// true -> false, sell/short
-		logger.Sugar.Info("[Sginal] SELL")
-		s.trend = -1
+		logger.Sugar.Info("[Signal] SELL")
 		if !dry {
 			s.short(ctx)
 		}
-	} else if s.trend == 0 && trend[l-1] {
-		// first time, try buy
-		logger.Sugar.Info("init process, in BUY signal period")
+	}
+	if trend[l-1] {
 		s.trend = 1
-		if !dry {
-			s.long(ctx)
-		}
-	} else if s.trend == 0 && !trend[l-1] {
-		// first time, try sell
-		logger.Sugar.Info("init process, in SELL signal period")
+	} else {
 		s.trend = -1
-		if !dry {
-			s.short(ctx)
-		}
 	}
 }
 
@@ -268,7 +312,7 @@ func (s *SuperTrendTrader) doWork(ctx context.Context, dry bool) {
 //}
 
 func (s *SuperTrendTrader) buy(ctx context.Context, symbol string, amountPrecision int32, minAmount, minTotal decimal.Decimal) {
-	balance, err := s.ex.AvailableBalance()
+	balance, err := s.ex.SpotAvailableBalance()
 	if err != nil {
 		logger.Sugar.Errorf("get available balance error: %s", err)
 		return
@@ -277,32 +321,30 @@ func (s *SuperTrendTrader) buy(ctx context.Context, symbol string, amountPrecisi
 		logger.Sugar.Infof("position full: %v", balance)
 		return
 	}
-	ob, err := s.ex.OrderBook(symbol)
-	if err != nil {
-		logger.Sugar.Errorf("get order book error: %s", err)
-		return
-	}
-	// taker
-	s1, _ := gateio.Sell1(ob.Asks)
-	price := decimal.NewFromFloat(s1)
+	//price, err := s.ex.LastPrice(symbol)
+	//if err != nil {
+	//	logger.Sugar.Errorf("get LastPrice error: %s", err)
+	//	return
+	//}
 	// buy half balance
 	maxTotal := balance[s.quoteCurrency]
 	if maxTotal.GreaterThan(s.maxTotal) {
 		maxTotal = s.maxTotal
 	}
-	amount := maxTotal.Div(price).Round(amountPrecision)
-	total := price.Mul(amount)
-	for total.GreaterThan(balance[s.quoteCurrency]) {
-		amount = amount.Sub(minAmount)
-		total = price.Mul(amount)
-	}
-	logger.Sugar.Debugf("try to buy %s, balance: %v, amount: %s, price: %s, total: %s", symbol, balance, amount, price, total)
-	if amount.LessThan(minAmount) {
-		logger.Sugar.Infof("amount too small: %s", amount)
-		//full
-		s.position = 1
-		return
-	}
+	//amount := maxTotal.Div(price).Round(amountPrecision)
+	//total := price.Mul(amount)
+	//for total.GreaterThan(balance[s.quoteCurrency]) {
+	//	amount = amount.Sub(minAmount)
+	//	total = price.Mul(amount)
+	//}
+	//logger.Sugar.Debugf("try to buy %s, balance: %v, amount: %s, price: %s, total: %s", symbol, balance, amount, price, total)
+	//if amount.LessThan(minAmount) {
+	//	logger.Sugar.Infof("amount too small: %s", amount)
+	//	//full
+	//	s.position = 1
+	//	return
+	//}
+	total := maxTotal
 	if total.LessThan(minTotal) {
 		logger.Sugar.Infof("total too small: %s", total)
 		//full
@@ -310,20 +352,21 @@ func (s *SuperTrendTrader) buy(ctx context.Context, symbol string, amountPrecisi
 		return
 	}
 	clientId := fmt.Sprintf("c-0-%d", s.LongTimes+1)
-	orderId, err := s.ex.Buy(symbol, price, amount, gateio.OrderTypeNormal, clientId)
+	orderId, err := s.ex.BuyMarket(symbol, clientId, total)
 	if err != nil {
 		logger.Sugar.Errorf("buy error: %s", err)
 		return
 	}
-	logger.Sugar.Infof("买入，订单号: %d / %s, price: %s, amount: %s", orderId, clientId, price, amount)
-	s.Broadcast(symbol, "buy", price.String(), amount.String(), total.String())
+	//logger.Sugar.Infof("买入，订单号: %d / %s, price: %s, amount: %s", orderId, clientId, price, amount)
+	logger.Sugar.Infof("市价买入，订单号: %d / %s, total: %s", orderId, clientId, total)
+	//s.Broadcast(symbol, "buy", price.String(), amount.String(), total.String())
 
 	s.position = 1
 	s.LongTimes++
 }
 
 func (s *SuperTrendTrader) sell(ctx context.Context, symbol, currency string, amountPrecision int32, minAmount, minTotal decimal.Decimal) {
-	balance, err := s.ex.AvailableBalance()
+	balance, err := s.ex.SpotAvailableBalance()
 	if err != nil {
 		logger.Sugar.Errorf("get available balance error: %s", err)
 		return
@@ -332,40 +375,37 @@ func (s *SuperTrendTrader) sell(ctx context.Context, symbol, currency string, am
 		logger.Sugar.Infof("position clear: %v", balance)
 		return
 	}
-	ob, err := s.ex.OrderBook(symbol)
-	if err != nil {
-		logger.Sugar.Errorf("get order book error: %s", err)
-		return
-	}
-	// taker
-	b1, _ := gateio.Buy1(ob.Bids)
-	price := decimal.NewFromFloat(b1)
+	//price, err := s.ex.LastPrice(symbol)
+	//if err != nil {
+	//	logger.Sugar.Errorf("get LastPrice error: %s", err)
+	//	return
+	//}
 	// sell all balance
 	amount := balance[currency].Round(amountPrecision)
 	if amount.GreaterThan(balance[currency]) {
 		amount = amount.Sub(minAmount)
 	}
-	logger.Sugar.Debugf("try to sell %s, balance: %v, amount: %s, price: %s", symbol, balance, amount, price)
+	//logger.Sugar.Debugf("try to sell %s, balance: %v, amount: %s, price: %s", symbol, balance, amount, price)
 	if amount.LessThan(minAmount) {
 		logger.Sugar.Infof("amount too small: %s", amount)
 		s.position = -1
 		return
 	}
-	total := amount.Mul(price)
-	if total.LessThan(minTotal) {
-		logger.Sugar.Infof("total too small: %s", total)
-		//full
-		s.position = 1
-		return
-	}
+	//total := amount.Mul(price)
+	//if total.LessThan(minTotal) {
+	//	logger.Sugar.Infof("total too small: %s", total)
+	//	//full
+	//	s.position = 1
+	//	return
+	//}
 	clientId := fmt.Sprintf("c-%d-0", s.ShortTimes+1)
-	orderId, err := s.ex.Sell(symbol, price, amount, gateio.OrderTypeNormal, clientId)
+	orderId, err := s.ex.SellMarket(symbol, clientId, amount)
 	if err != nil {
 		logger.Sugar.Errorf("sell error: %s", err)
 		return
 	}
-	logger.Sugar.Infof("清仓，订单号: %d / %s, price: %s, amount: %s", orderId, clientId, price, amount)
-	s.Broadcast(symbol, "sell", price.String(), amount.String(), total.String())
+	logger.Sugar.Infof("市价清仓，订单号: %d / %s, amount: %s", orderId, clientId, amount)
+	//s.Broadcast(symbol, "sell", price.String(), amount.String(), total.String())
 
 	s.position = -1
 	s.ShortTimes++
@@ -411,4 +451,11 @@ func (s *SuperTrendTrader) Broadcast(symbol, direction, price, amount, total str
 			log.Infof("broadcast error: %s", err)
 		}
 	}
+}
+
+func timestampToDate(timestamp int64) string {
+	secondsEastOfUTC := int((8 * time.Hour).Seconds())
+	beijing := time.FixedZone("Beijing Time", secondsEastOfUTC)
+	layout := "2006-01-02 15:04:05"
+	return time.Unix(timestamp, 0).In(beijing).Format(layout)
 }

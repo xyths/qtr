@@ -91,7 +91,7 @@ var (
 		Flags: []cli.Flag{
 			utils.StartTimeFlag,
 			utils.EndTimeFlag,
-			utils.CsvFlag,
+			utils.OutputCsvFlag,
 		},
 		Subcommands: []*cli.Command{
 			{
@@ -128,7 +128,7 @@ var (
 				Flags: []cli.Flag{
 					utils.StartTimeFlag,
 					utils.EndTimeFlag,
-					utils.CsvFlag,
+					utils.OutputCsvFlag,
 				},
 			},
 		},
@@ -159,7 +159,7 @@ var (
 	//		utils.LabelFlag,
 	//		utils.StartTimeFlag,
 	//		utils.EndTimeFlag,
-	//		utils.CsvFlag,
+	//		utils.OutputCsvFlag,
 	//	},
 	//}
 )
@@ -217,7 +217,7 @@ func export(ctx *cli.Context) error {
 
 	start := ctx.String(utils.StartTimeFlag.Name)
 	end := ctx.String(utils.EndTimeFlag.Name)
-	csv := ctx.String(utils.CsvFlag.Name)
+	csv := ctx.String(utils.OutputCsvFlag.Name)
 
 	return h.Export(ctx.Context, start, end, csv)
 }

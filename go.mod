@@ -17,7 +17,7 @@ require (
 	github.com/thrasher-corp/gocryptotrader v0.0.0-20200710060040-409fc6478ecc
 	github.com/urfave/cli/v2 v2.2.0
 	github.com/xyths/go-indicators v0.1.0
-	github.com/xyths/hs v0.9.4
+	github.com/xyths/hs v0.10.9
 	go.mongodb.org/mongo-driver v1.3.5
 	golang.org/x/crypto v0.0.0-20200709230013-948cd5f35899 // indirect
 	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e

@@ -18,8 +18,10 @@ var (
 				Usage:  "candlestick of gate",
 				Flags: []cli.Flag{
 					SymbolFlag,
-					GroupSecFlag,
-					RangeHourFlag,
+					TypeFlag,
+					utils.StartTimeFlag,
+					utils.EndTimeFlag,
+					utils.OutputCsvFlag,
 					HostFlag,
 				},
 			},
@@ -32,17 +34,18 @@ var (
 		Flags: []cli.Flag{
 			utils.StartTimeFlag,
 			utils.EndTimeFlag,
-			utils.CsvFlag,
+			utils.OutputCsvFlag,
 		},
 	}
 )
 
 func gateCandlestick(ctx *cli.Context) error {
 	symbol := ctx.String(SymbolFlag.Name)
-	groupSec := ctx.Int(GroupSecFlag.Name)
-	rangeHour := ctx.Int(RangeHourFlag.Name)
+	cType := ctx.String(TypeFlag.Name)
+	startTime := ctx.String(utils.StartTimeFlag.Name)
+	endTime := ctx.String(utils.EndTimeFlag.Name)
 	host := ctx.String(HostFlag.Name)
-	log.Printf("symbol: %s, group_sec: %d, range_hour: %d", symbol, groupSec, rangeHour)
+	log.Printf("symbol: %s, type: %s,  start: %s, end: %s, host: %s", symbol, cType, startTime, endTime, host)
 
 	g := gateio.New("", "", host)
 	candles, err := g.Candles(symbol, groupSec, rangeHour)

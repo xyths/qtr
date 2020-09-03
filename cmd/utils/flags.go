@@ -29,10 +29,17 @@ var (
 		Usage:   "end `time` (e.g. \"2020-04-01 23:59:59\", default: now)",
 	}
 
-	CsvFlag = &cli.StringFlag{
-		Name:  "csv",
+	InputCsvFlag = &cli.StringFlag{
+		Name:  "input",
+		Aliases: []string{"i"},
 		Value: "",
-		Usage: "write to `file`",
+		Usage: "read data from `csv`",
+	}
+	OutputCsvFlag = &cli.StringFlag{
+		Name:  "output",
+		Aliases: []string{"o"},
+		Value: "",
+		Usage: "write to `csv`",
 	}
 	TestConfigFlag = &cli.BoolFlag{
 		Name:    "test",
