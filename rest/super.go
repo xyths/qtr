@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/martian/log"
+	"github.com/huobirdcenter/huobi_golang/pkg/response/market"
 	"github.com/shopspring/decimal"
 	"github.com/xyths/go-indicators"
 	"github.com/xyths/hs"
@@ -35,7 +36,7 @@ type SuperTrendTrader struct {
 	interval time.Duration
 
 	db     *mongo.Database
-	ex     hs.RestAPIExchange
+	ex     hs.Exchange
 	robots []broadcast.Broadcaster
 
 	quoteCurrency string // cash, eg. USDT
@@ -54,6 +55,8 @@ type SuperTrendTrader struct {
 	shortAmountPrecision int32
 	shortMinAmount       decimal.Decimal
 	shortMinTotal        decimal.Decimal
+
+	candle hs.Candle
 
 	buyOrderType  string
 	sellOrderType string
@@ -89,6 +92,7 @@ func (s *SuperTrendTrader) Init(ctx context.Context) {
 		logger.Sugar.Fatal(err)
 	}
 	s.db = db
+	s.candle = hs.NewCandle(1000)
 	s.initEx(ctx)
 	s.initRobots(ctx)
 }
@@ -115,16 +119,21 @@ func (s *SuperTrendTrader) Start(ctx context.Context, dry bool) error {
 	//	s.saveState(ctx)
 	//}
 
-	s.doWork(ctx, dry)
-	for {
-		select {
-		case <-ctx.Done():
-			logger.Sugar.Info("SuperTrend trader stopped")
-			return nil
-		case <-time.After(s.interval):
-			s.doWork(ctx, dry)
-		}
-	}
+	// setup subscriber
+	go s.ex.SubscribeCandlestickWithReq(ctx, s.baseSymbol, "super", s.interval, s.tickerHandler)
+	// wait for candle
+	<-ctx.Done()
+	return nil
+	//s.doWork(ctx, dry)
+	//for {
+	//	select {
+	//	case <-ctx.Done():
+	//		logger.Sugar.Info("SuperTrend trader stopped")
+	//		return nil
+	//	case <-time.After(time.Second): //s.interval
+	//		s.doWork(ctx, dry)
+	//	}
+	//}
 }
 
 func (s *SuperTrendTrader) initEx(ctx context.Context) {
@@ -134,13 +143,13 @@ func (s *SuperTrendTrader) initEx(ctx context.Context) {
 	case "huobi":
 		s.initHuobi(ctx)
 	default:
-		logger.Sugar.Fatalf("unsupport exchange")
+		logger.Sugar.Fatalf("unsupported exchange")
 	}
 	s.initLimits()
 }
 
 func (s *SuperTrendTrader) initGate(ctx context.Context) {
-	s.ex = gateio.New(s.config.Exchange.Key, s.config.Exchange.Secret, s.config.Exchange.Host)
+	//s.ex = gateio.New(s.config.Exchange.Key, s.config.Exchange.Secret, s.config.Exchange.Host)
 	switch s.config.Exchange.Symbols[0] {
 	case "btc3l_usdt":
 		s.baseSymbol = gateio.BTC3L_USDT
@@ -262,10 +271,10 @@ func (s *SuperTrendTrader) doWork(ctx context.Context, dry bool) {
 	}
 
 	tsl, trend := indicator.SuperTrend(s.config.Strategy.Factor, s.config.Strategy.Period, candle.High, candle.Low, candle.Close)
-	//for i := 0; i < candle.Length(); i++ {
-	//	logger.Sugar.Debugf("[%d] %s %f %f %f %f, %f, %v",
-	//		i, timestampToDate(candle.Timestamp[i]), candle.Open[i], candle.High[i], candle.Low[i], candle.Close[i], tsl[i], trend[i])
-	//}
+	for i := candle.Length() - 2; i < candle.Length(); i++ {
+		logger.Sugar.Debugf("[%d] %s %f %f %f %f, %f, %v",
+			i, timestampToDate(candle.Timestamp[i]), candle.Open[i], candle.High[i], candle.Low[i], candle.Close[i], tsl[i], trend[i])
+	}
 	l := len(trend)
 	if l < 2 {
 		return
@@ -276,13 +285,13 @@ func (s *SuperTrendTrader) doWork(ctx context.Context, dry bool) {
 		// false -> true, buy/long
 		logger.Sugar.Info("[Signal] BUY")
 		if !dry {
-			s.long(ctx)
+			s.long()
 		}
 	} else if !trend[l-1] && trend[l-2] || !trend[l-1] && s.trend == 1 {
 		// true -> false, sell/short
 		logger.Sugar.Info("[Signal] SELL")
 		if !dry {
-			s.short(ctx)
+			s.short()
 		}
 	}
 	if trend[l-1] {
@@ -311,7 +320,7 @@ func (s *SuperTrendTrader) doWork(ctx context.Context, dry bool) {
 //	t.state.LastModified = time.Now()
 //}
 
-func (s *SuperTrendTrader) buy(ctx context.Context, symbol string, amountPrecision int32, minAmount, minTotal decimal.Decimal) {
+func (s *SuperTrendTrader) buy(symbol string, amountPrecision int32, minAmount, minTotal decimal.Decimal) {
 	balance, err := s.ex.SpotAvailableBalance()
 	if err != nil {
 		logger.Sugar.Errorf("get available balance error: %s", err)
@@ -365,7 +374,7 @@ func (s *SuperTrendTrader) buy(ctx context.Context, symbol string, amountPrecisi
 	s.LongTimes++
 }
 
-func (s *SuperTrendTrader) sell(ctx context.Context, symbol, currency string, amountPrecision int32, minAmount, minTotal decimal.Decimal) {
+func (s *SuperTrendTrader) sell(symbol, currency string, amountPrecision int32, minAmount, minTotal decimal.Decimal) {
 	balance, err := s.ex.SpotAvailableBalance()
 	if err != nil {
 		logger.Sugar.Errorf("get available balance error: %s", err)
@@ -411,21 +420,21 @@ func (s *SuperTrendTrader) sell(ctx context.Context, symbol, currency string, am
 	s.ShortTimes++
 }
 
-func (s *SuperTrendTrader) long(ctx context.Context) {
+func (s *SuperTrendTrader) long() {
 	// sell short currency
 	if s.shortSymbol != s.baseSymbol {
-		s.sell(ctx, s.shortSymbol, s.shortCurrency, s.shortAmountPrecision, s.shortMinAmount, s.shortMinTotal)
+		s.sell(s.shortSymbol, s.shortCurrency, s.shortAmountPrecision, s.shortMinAmount, s.shortMinTotal)
 	}
 	// buy long currency
-	s.buy(ctx, s.longSymbol, s.longAmountPrecision, s.longMinAmount, s.longMinTotal)
+	s.buy(s.longSymbol, s.longAmountPrecision, s.longMinAmount, s.longMinTotal)
 }
 
-func (s *SuperTrendTrader) short(ctx context.Context) {
+func (s *SuperTrendTrader) short() {
 	// sell long currency
-	s.sell(ctx, s.longSymbol, s.longCurrency, s.longAmountPrecision, s.longMinAmount, s.longMinTotal)
+	s.sell(s.longSymbol, s.longCurrency, s.longAmountPrecision, s.longMinAmount, s.longMinTotal)
 	// buy short currency
 	if s.shortSymbol != s.baseSymbol {
-		s.buy(ctx, s.shortSymbol, s.shortAmountPrecision, s.shortMinAmount, s.shortMinTotal)
+		s.buy(s.shortSymbol, s.shortAmountPrecision, s.shortMinAmount, s.shortMinTotal)
 	}
 }
 
@@ -450,6 +459,85 @@ func (s *SuperTrendTrader) Broadcast(symbol, direction, price, amount, total str
 		if err := robot.SendText(msg); err != nil {
 			log.Infof("broadcast error: %s", err)
 		}
+	}
+}
+
+func (s *SuperTrendTrader) tickerHandler(resp interface{}) {
+	candlestickResponse, ok := resp.(market.SubscribeCandlestickResponse)
+	if ok {
+		if &candlestickResponse != nil {
+			if candlestickResponse.Tick != nil {
+				tick := candlestickResponse.Tick
+				logger.Sugar.Infof("Tick, id: %d, count: %v, amount: %v, volume: %v, OHLC[%v, %v, %v, %v]",
+					tick.Id, tick.Count, tick.Amount, tick.Vol, tick.Open, tick.High, tick.Low, tick.Close)
+				ticker := hs.Ticker{
+					Timestamp: tick.Id,
+				}
+				ticker.Open, _ = tick.Open.Float64()
+				ticker.High, _ = tick.High.Float64()
+				ticker.Low, _ = tick.Low.Float64()
+				ticker.Close, _ = tick.Close.Float64()
+				ticker.Volume, _ = tick.Vol.Float64()
+				if s.candle.Length() > 0 {
+					s.candle.Append(ticker)
+					s.onTick(true)
+				} else {
+					logger.Sugar.Info("candle is not ready for append")
+				}
+			}
+
+			if candlestickResponse.Data != nil {
+				logger.Sugar.Infof("Candlestick(candle) update, last timestamp: %d", candlestickResponse.Data[len(candlestickResponse.Data)-1].Id)
+				for _, tick := range candlestickResponse.Data {
+					//logger.Sugar.Infof("Candlestick data[%d], id: %d, count: %v, volume: %v, OHLC[%v, %v, %v, %v]",
+					//	i, tick.Id, tick.Count, tick.Vol, tick.Open, tick.High, tick.Low, tick.Close)
+					ticker := hs.Ticker{
+						Timestamp: tick.Id,
+					}
+					ticker.Open, _ = tick.Open.Float64()
+					ticker.High, _ = tick.High.Float64()
+					ticker.Low, _ = tick.Low.Float64()
+					ticker.Close, _ = tick.Close.Float64()
+					ticker.Volume, _ = tick.Vol.Float64()
+					s.candle.Append(ticker)
+				}
+				s.onTick(true)
+			}
+		}
+	} else {
+		logger.Sugar.Warn("Unknown response: %v", resp)
+	}
+}
+
+func (s *SuperTrendTrader) onTick(dry bool) {
+	tsl, trend := indicator.SuperTrend(s.config.Strategy.Factor, s.config.Strategy.Period, s.candle.High, s.candle.Low, s.candle.Close)
+	for i := s.candle.Length() - 2; i < s.candle.Length(); i++ {
+		logger.Sugar.Debugf("[%d] %s %f %f %f %f, %f, %v",
+			i, timestampToDate(s.candle.Timestamp[i]), s.candle.Open[i], s.candle.High[i], s.candle.Low[i], s.candle.Close[i], tsl[i], trend[i])
+	}
+	l := len(trend)
+	if l < 2 {
+		return
+	}
+	logger.Sugar.Debugf("SuperTrend = [..., (%f, %v), (%f, %v)", tsl[l-2], trend[l-2], tsl[l-1], trend[l-1])
+
+	if trend[l-1] && !trend[l-2] || trend[l-1] && s.trend == -1 {
+		// false -> true, buy/long
+		logger.Sugar.Info("[Signal] BUY")
+		if !dry {
+			s.long()
+		}
+	} else if !trend[l-1] && trend[l-2] || !trend[l-1] && s.trend == 1 {
+		// true -> false, sell/short
+		logger.Sugar.Info("[Signal] SELL")
+		if !dry {
+			s.short()
+		}
+	}
+	if trend[l-1] {
+		s.trend = 1
+	} else {
+		s.trend = -1
 	}
 }
 
