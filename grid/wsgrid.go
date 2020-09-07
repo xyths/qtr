@@ -3,7 +3,7 @@ package grid
 import (
 	"context"
 	"fmt"
-	"github.com/huobirdcenter/huobi_golang/pkg/response/order"
+	"github.com/huobirdcenter/huobi_golang/pkg/model/order"
 	"github.com/jinzhu/gorm"
 	"github.com/xyths/qtr/exchange"
 	"github.com/xyths/qtr/exchange/huobi"

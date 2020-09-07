@@ -2,7 +2,7 @@ package node
 
 import (
 	"context"
-	"github.com/huobirdcenter/huobi_golang/pkg/response/account"
+	"github.com/huobirdcenter/huobi_golang/pkg/model/account"
 	"github.com/jinzhu/gorm"
 	"github.com/xyths/hs/convert"
 	"github.com/xyths/qtr/exchange"

@@ -7,9 +7,9 @@ import (
 	"github.com/huobirdcenter/huobi_golang/pkg/client"
 	"github.com/huobirdcenter/huobi_golang/pkg/client/orderwebsocketclient"
 	"github.com/huobirdcenter/huobi_golang/pkg/client/websocketclientbase"
-	"github.com/huobirdcenter/huobi_golang/pkg/getrequest"
-	"github.com/huobirdcenter/huobi_golang/pkg/postrequest"
-	"github.com/huobirdcenter/huobi_golang/pkg/response/account"
+	"github.com/huobirdcenter/huobi_golang/pkg/model/account"
+	"github.com/huobirdcenter/huobi_golang/pkg/model/market"
+	"github.com/huobirdcenter/huobi_golang/pkg/model/order"
 	"github.com/xyths/hs/convert"
 	"github.com/xyths/hs/exchange/huobi"
 	"log"
@@ -103,7 +103,7 @@ func (c *Client) Balances() (map[string]float64, error) {
 
 func (c *Client) LastPrice(symbol string) (float64, error) {
 	hb := new(client.MarketClient).Init(c.Config.Host)
-	optionalRequest := getrequest.GetCandlestickOptionalRequest{Period: getrequest.MIN1, Size: 1}
+	optionalRequest := market.GetCandlestickOptionalRequest{Period: market.MIN1, Size: 1}
 	candlesticks, err := hb.GetCandlestick(symbol, optionalRequest)
 	if err != nil {
 		return 0, err
@@ -168,7 +168,7 @@ func (c *Client) PlaceOrder(orderType, symbol string, price, amount float64) (ui
 
 	strPrice := fmt.Sprintf("%."+strconv.Itoa(PricePrecision[symbol])+"f", price)
 	strAmount := fmt.Sprintf("%."+strconv.Itoa(AmountPrecision[symbol])+"f", amount)
-	request := postrequest.PlaceOrderRequest{
+	request := order.PlaceOrderRequest{
 		AccountId: fmt.Sprintf("%d", c.Accounts["spot"].Id),
 		Type:      orderType,
 		Source:    "spot-api",

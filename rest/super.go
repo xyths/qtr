@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/martian/log"
-	"github.com/huobirdcenter/huobi_golang/pkg/response/market"
+	"github.com/huobirdcenter/huobi_golang/pkg/model/market"
 	"github.com/shopspring/decimal"
 	"github.com/xyths/go-indicators"
 	"github.com/xyths/hs"
@@ -12,7 +12,10 @@ import (
 	"github.com/xyths/hs/exchange/gateio"
 	"github.com/xyths/hs/exchange/huobi"
 	"github.com/xyths/hs/logger"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -34,6 +37,7 @@ type SuperTrendStrategyConf struct {
 type SuperTrendTrader struct {
 	config   SuperTrendConfig
 	interval time.Duration
+	dry      bool
 
 	db     *mongo.Database
 	ex     hs.Exchange
@@ -58,10 +62,9 @@ type SuperTrendTrader struct {
 
 	candle hs.Candle
 
-	buyOrderType  string
-	sellOrderType string
+	lastBuyTime  int64
+	lastSellTime int64
 
-	trend      int
 	orderId    string
 	position   int
 	LongTimes  int
@@ -69,6 +72,8 @@ type SuperTrendTrader struct {
 
 	//balance   map[string]decimal.Decimal
 }
+
+const collNameState = "state"
 
 func NewSuperTrendTrader(configFilename string) *SuperTrendTrader {
 	cfg := SuperTrendConfig{}
@@ -92,7 +97,7 @@ func (s *SuperTrendTrader) Init(ctx context.Context) {
 		logger.Sugar.Fatal(err)
 	}
 	s.db = db
-	s.candle = hs.NewCandle(1000)
+	s.candle = hs.NewCandle(2000)
 	s.initEx(ctx)
 	s.initRobots(ctx)
 }
@@ -114,26 +119,23 @@ func (s *SuperTrendTrader) Clear(ctx context.Context) error {
 }
 
 func (s *SuperTrendTrader) Start(ctx context.Context, dry bool) error {
-	//if !s.loadState(ctx) {
-	//	s.getPosition(ctx)
-	//	s.saveState(ctx)
-	//}
+	s.loadState(ctx)
 
 	// setup subscriber
-	go s.ex.SubscribeCandlestickWithReq(ctx, s.baseSymbol, "super", s.interval, s.tickerHandler)
+	s.dry = dry
+	{
+		to := time.Now()
+		from := to.Add(-2000 * s.interval)
+		candle, err := s.ex.CandleFrom(s.baseSymbol, "super", s.interval, from, to)
+		if err != nil {
+			logger.Sugar.Fatalf("get candle error: %s", err)
+		}
+		s.candle = candle
+	}
+	go s.ex.SubscribeCandlestick(ctx, s.baseSymbol, "super", s.interval, s.tickerHandler)
 	// wait for candle
 	<-ctx.Done()
 	return nil
-	//s.doWork(ctx, dry)
-	//for {
-	//	select {
-	//	case <-ctx.Done():
-	//		logger.Sugar.Info("SuperTrend trader stopped")
-	//		return nil
-	//	case <-time.After(time.Second): //s.interval
-	//		s.doWork(ctx, dry)
-	//	}
-	//}
 }
 
 func (s *SuperTrendTrader) initEx(ctx context.Context) {
@@ -263,63 +265,6 @@ func (s *SuperTrendTrader) initRobots(ctx context.Context) {
 	}
 }
 
-func (s *SuperTrendTrader) doWork(ctx context.Context, dry bool) {
-	candle, err := s.ex.Candle(s.baseSymbol, s.interval, 2000)
-	if err != nil {
-		logger.Sugar.Errorf("get candle error: %s", err)
-		return
-	}
-
-	tsl, trend := indicator.SuperTrend(s.config.Strategy.Factor, s.config.Strategy.Period, candle.High, candle.Low, candle.Close)
-	for i := candle.Length() - 2; i < candle.Length(); i++ {
-		logger.Sugar.Debugf("[%d] %s %f %f %f %f, %f, %v",
-			i, timestampToDate(candle.Timestamp[i]), candle.Open[i], candle.High[i], candle.Low[i], candle.Close[i], tsl[i], trend[i])
-	}
-	l := len(trend)
-	if l < 2 {
-		return
-	}
-	logger.Sugar.Debugf("SuperTrend = [..., (%f, %v), (%f, %v)", tsl[l-2], trend[l-2], tsl[l-1], trend[l-1])
-
-	if trend[l-1] && !trend[l-2] || trend[l-1] && s.trend == -1 {
-		// false -> true, buy/long
-		logger.Sugar.Info("[Signal] BUY")
-		if !dry {
-			s.long()
-		}
-	} else if !trend[l-1] && trend[l-2] || !trend[l-1] && s.trend == 1 {
-		// true -> false, sell/short
-		logger.Sugar.Info("[Signal] SELL")
-		if !dry {
-			s.short()
-		}
-	}
-	if trend[l-1] {
-		s.trend = 1
-	} else {
-		s.trend = -1
-	}
-}
-
-//func (t *SuperTrendTrader) getPosition(ctx context.Context) {
-//	balance, err := t.ex.AvailableBalance()
-//	if err != nil {
-//		logger.Sugar.Errorf("get available balance error: %s", err)
-//		return
-//	}
-//	t.balance = balance
-//	logger.Sugar.Debugf("balance: %v", t.balance)
-//
-//	if t.balance[t.quoteCurrency].LessThan(decimal.NewFromInt(1)) {
-//		// full
-//		t.state.Position = 3
-//	} else if balance[t.baseCurrency].GreaterThan(t.minAmount) {
-//		t.state.Position = 1
-//	}
-//
-//	t.state.LastModified = time.Now()
-//}
-
 func (s *SuperTrendTrader) buy(symbol string, amountPrecision int32, minAmount, minTotal decimal.Decimal) {
 	balance, err := s.ex.SpotAvailableBalance()
 	if err != nil {
@@ -330,29 +275,10 @@ func (s *SuperTrendTrader) buy(symbol string, amountPrecision int32, minAmount, 
 		logger.Sugar.Infof("position full: %v", balance)
 		return
 	}
-	//price, err := s.ex.LastPrice(symbol)
-	//if err != nil {
-	//	logger.Sugar.Errorf("get LastPrice error: %s", err)
-	//	return
-	//}
-	// buy half balance
 	maxTotal := balance[s.quoteCurrency]
 	if maxTotal.GreaterThan(s.maxTotal) {
 		maxTotal = s.maxTotal
 	}
-	//amount := maxTotal.Div(price).Round(amountPrecision)
-	//total := price.Mul(amount)
-	//for total.GreaterThan(balance[s.quoteCurrency]) {
-	//	amount = amount.Sub(minAmount)
-	//	total = price.Mul(amount)
-	//}
-	//logger.Sugar.Debugf("try to buy %s, balance: %v, amount: %s, price: %s, total: %s", symbol, balance, amount, price, total)
-	//if amount.LessThan(minAmount) {
-	//	logger.Sugar.Infof("amount too small: %s", amount)
-	//	//full
-	//	s.position = 1
-	//	return
-	//}
 	total := maxTotal
 	if total.LessThan(minTotal) {
 		logger.Sugar.Infof("total too small: %s", total)
@@ -384,11 +310,6 @@ func (s *SuperTrendTrader) sell(symbol, currency string, amountPrecision int32, 
 		logger.Sugar.Infof("position clear: %v", balance)
 		return
 	}
-	//price, err := s.ex.LastPrice(symbol)
-	//if err != nil {
-	//	logger.Sugar.Errorf("get LastPrice error: %s", err)
-	//	return
-	//}
 	// sell all balance
 	amount := balance[currency].Round(amountPrecision)
 	if amount.GreaterThan(balance[currency]) {
@@ -400,13 +321,6 @@ func (s *SuperTrendTrader) sell(symbol, currency string, amountPrecision int32, 
 		s.position = -1
 		return
 	}
-	//total := amount.Mul(price)
-	//if total.LessThan(minTotal) {
-	//	logger.Sugar.Infof("total too small: %s", total)
-	//	//full
-	//	s.position = 1
-	//	return
-	//}
 	clientId := fmt.Sprintf("c-%d-0", s.ShortTimes+1)
 	orderId, err := s.ex.SellMarket(symbol, clientId, amount)
 	if err != nil {
@@ -480,7 +394,7 @@ func (s *SuperTrendTrader) tickerHandler(resp interface{}) {
 				ticker.Volume, _ = tick.Vol.Float64()
 				if s.candle.Length() > 0 {
 					s.candle.Append(ticker)
-					s.onTick(true)
+					s.onTick(s.dry)
 				} else {
 					logger.Sugar.Info("candle is not ready for append")
 				}
@@ -501,7 +415,7 @@ func (s *SuperTrendTrader) tickerHandler(resp interface{}) {
 					ticker.Volume, _ = tick.Vol.Float64()
 					s.candle.Append(ticker)
 				}
-				s.onTick(true)
+				s.onTick(s.dry)
 			}
 		}
 	} else {
@@ -516,28 +430,95 @@ func (s *SuperTrendTrader) onTick(dry bool) {
 			i, timestampToDate(s.candle.Timestamp[i]), s.candle.Open[i], s.candle.High[i], s.candle.Low[i], s.candle.Close[i], tsl[i], trend[i])
 	}
 	l := len(trend)
+	t := s.candle.Timestamp[l-1]
 	if l < 2 {
 		return
 	}
 	logger.Sugar.Debugf("SuperTrend = [..., (%f, %v), (%f, %v)", tsl[l-2], trend[l-2], tsl[l-1], trend[l-1])
 
-	if trend[l-1] && !trend[l-2] || trend[l-1] && s.trend == -1 {
+	if trend[l-1] && !trend[l-2] && s.lastBuyTime != t {
 		// false -> true, buy/long
 		logger.Sugar.Info("[Signal] BUY")
+		s.saveLastBuyTime(context.Background())
 		if !dry {
-			s.long()
+			go s.long()
 		}
-	} else if !trend[l-1] && trend[l-2] || !trend[l-1] && s.trend == 1 {
+		s.lastBuyTime = t
+	} else if !trend[l-1] && trend[l-2] && s.lastSellTime != t {
 		// true -> false, sell/short
 		logger.Sugar.Info("[Signal] SELL")
+		s.saveLastSellTime(context.Background())
 		if !dry {
-			s.short()
+			go s.short()
 		}
+		s.lastSellTime = t
 	}
-	if trend[l-1] {
-		s.trend = 1
-	} else {
-		s.trend = -1
+}
+
+func (s *SuperTrendTrader) saveLastBuyTime(ctx context.Context) {
+	if err := s.saveInt64(ctx, "lastBuyTime", s.lastBuyTime); err != nil {
+		logger.Sugar.Errorf("save lastBuyTime error: %s", err)
+	}
+}
+func (s *SuperTrendTrader) saveLastSellTime(ctx context.Context) {
+	if err := s.saveInt64(ctx, "lastSellTime", s.lastSellTime); err != nil {
+		logger.Sugar.Errorf("save lastSellTime error: %s", err)
+	}
+}
+func (s *SuperTrendTrader) saveInt64(ctx context.Context, key string, value int64) error {
+	coll := s.db.Collection(collNameState)
+	option := &options.UpdateOptions{}
+	option.SetUpsert(true)
+
+	_, err := coll.UpdateOne(context.Background(),
+		bson.D{
+			{"key", key},
+		},
+		bson.D{
+			{"$set", bson.D{
+				{"value", value},
+			}},
+			{"$currentDate", bson.D{
+				{"lastModified", true},
+			}},
+		},
+		option,
+	)
+	return err
+}
+func (s *SuperTrendTrader) loadLastBuyTime(ctx context.Context) (int64, error) {
+	return s.loadInt64(ctx, "lastBuyTime")
+}
+func (s *SuperTrendTrader) loadLastSellTime(ctx context.Context) (int64, error) {
+	return s.loadInt64(ctx, "lastSellTime")
+}
+func (s *SuperTrendTrader) loadInt64(ctx context.Context, key string) (int64, error) {
+	coll := s.db.Collection(collNameState)
+	var state = struct {
+		Key   string
+		Value string
+	}{}
+	if err := coll.FindOne(ctx, bson.D{}).Decode(&state); err == mongo.ErrNoDocuments {
+		//logger.Sugar.Errorf("load Position error: %s",err)
+		return 0, nil
+	} else if err != nil {
+		return 0, err
+	}
+	return strconv.ParseInt(state.Value, 10, 64)
+}
+
+func (s *SuperTrendTrader) loadState(ctx context.Context) {
+	if buy, err := s.loadLastBuyTime(ctx); err != nil {
+		logger.Sugar.Fatalf("loadBuyTime error: %s", err)
+	} else if buy != 0 {
+		s.lastBuyTime = buy
+		logger.Sugar.Infof("loaded loadBuyTime: %s", timestampToDate(buy))
+	}
+	if sell, err := s.loadLastSellTime(ctx); err != nil {
+		logger.Sugar.Fatalf("loadSellTime error: %s", err)
+	} else if sell != 0 {
+		s.lastSellTime = sell
+		logger.Sugar.Infof("loaded lastSellTime: %s", timestampToDate(sell))
 	}
 }
 
