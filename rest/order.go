@@ -11,6 +11,8 @@ type Order struct {
 	Amount        string
 	Total         string
 
+	Status string
+
 	Trades []Trade
 
 	Updated time.Time

@@ -118,6 +118,7 @@ func (s *SuperTrendTrader) Clear(ctx context.Context) error {
 
 func (s *SuperTrendTrader) Start(ctx context.Context, dry bool) error {
 	s.loadState(ctx)
+	s.checkState(ctx)
 	s.dry = dry
 
 	// setup subscriber
@@ -523,8 +524,8 @@ func (s *SuperTrendTrader) OrderUpdateHandler(response interface{}) {
 				ClientOrderId: o.ClientOrderId,
 				Type:          o.Type,
 				Price:         o.OrderPrice,
-
-				Updated: time.Now(),
+				Status:        o.OrderStatus,
+				Updated:       time.Now(),
 			}
 			switch o.Type {
 			case "buy-market":
@@ -542,19 +543,36 @@ func (s *SuperTrendTrader) OrderUpdateHandler(response interface{}) {
 			go s.createOrder(context.Background(), order2)
 		case "cancellation":
 			logger.Sugar.Debugf("order cancelled, orderId: %d, clientOrderId: %s", o.OrderId, o.ClientOrderId)
+			o2 := Order{
+				Id:      o.OrderId,
+				Status:  o.OrderStatus,
+				Updated: time.Now(),
+			}
+			go s.cancelOrder(context.Background(), o2)
 		case "trade":
 			logger.Sugar.Debugf("order filled, orderId: %d, clientOrderId: %s, fill type: %s",
 				o.OrderId, o.ClientOrderId, o.OrderStatus)
+			o2 := Order{
+				Id:      o.OrderId,
+				Status:  o.OrderStatus,
+				Updated: time.Now(),
+			}
 			t := Trade{
 				Id:     o.TradeId,
 				Price:  o.TradePrice,
 				Amount: o.TradeVolume,
 				Remain: o.RemainAmt,
 			}
-			go s.fillOrder(context.Background(), o.OrderId, t)
+			go s.fillOrder(context.Background(), o2, t)
 		case "deletion":
 			logger.Sugar.Debugf("order deleted, orderId: %d, clientOrderId: %s, fill type: %s",
 				o.OrderId, o.ClientOrderId, o.OrderStatus)
+			o2 := Order{
+				Id:      o.OrderId,
+				Status:  o.OrderStatus,
+				Updated: time.Now(),
+			}
+			go s.deleteOrder(context.Background(), o2)
 		default:
 			logger.Sugar.Warnf("unknown eventType, should never happen, orderId: %d, clientOrderId: %s, eventType: %s",
 				o.OrderId, o.ClientOrderId, o.EventType)
@@ -588,7 +606,8 @@ func (s *SuperTrendTrader) onTick(dry bool) {
 		}
 	} else if s.position == 1 {
 		// update sell-stop-limit order
-		go s.updateSellStop(decimal.NewFromFloat(s.candle.Close[l-2]))
+		stop := decimal.NewFromFloat(tsl[l-2]).Round(s.longPricePrecision)
+		go s.updateSellStop(stop)
 	}
 }
 
@@ -693,6 +712,11 @@ func (s *SuperTrendTrader) clearState(ctx context.Context) {
 	}
 }
 
+func (s *SuperTrendTrader) checkState(ctx context.Context) {
+	// check sell-stop order
+	s.checkSellStopOrder(ctx)
+}
+
 func (s *SuperTrendTrader) addOrder(ctx context.Context, o Order) {
 	coll := s.db.Collection(collNameOrder)
 	if _, err := coll.InsertOne(
@@ -708,6 +732,8 @@ func (s *SuperTrendTrader) addOrder(ctx context.Context, o Order) {
 }
 func (s *SuperTrendTrader) createOrder(ctx context.Context, o Order) {
 	coll := s.db.Collection(collNameOrder)
+	option := &options.FindOneAndUpdateOptions{}
+	option.SetUpsert(true)
 	if r := coll.FindOneAndUpdate(
 		ctx,
 		bson.D{
@@ -719,28 +745,84 @@ func (s *SuperTrendTrader) createOrder(ctx context.Context, o Order) {
 				{"price", o.Price},
 				{"amount", o.Amount},
 				{"total", o.Total},
+				{"status", o.Status},
 				{"updated", o.Updated},
 			}},
 		},
+		option,
 	); r.Err() != nil {
 		logger.Sugar.Errorf("create order error: %s", r.Err())
 	}
 }
-func (s *SuperTrendTrader) fillOrder(ctx context.Context, orderId int64, t Trade) {
+func (s *SuperTrendTrader) fillOrder(ctx context.Context, o Order, t Trade) {
+	if o.Status == "filled" && strings.HasPrefix(o.ClientOrderId, "stl-") {
+		s.position = -1
+		logger.Sugar.Infof("sell-stop order %d is filled, change position to -1 (clear)", o.Id)
+	}
 	coll := s.db.Collection(collNameOrder)
+	option := &options.FindOneAndUpdateOptions{}
+	option.SetUpsert(true)
 	if r := coll.FindOneAndUpdate(
 		ctx,
 		bson.D{
-			{"_id", orderId},
+			{"_id", o.Id},
 		},
 		bson.D{
 			{"$push", bson.D{
 				{"trades", t},
+			}},
+			{"$set", bson.D{
+				{"status", o.Status},
 				{"updated", time.Now()},
 			}},
 		},
+		option,
 	); r.Err() != nil {
 		logger.Sugar.Errorf("fill order error: %s", r.Err())
+	}
+}
+func (s *SuperTrendTrader) cancelOrder(ctx context.Context, o Order) {
+	s.updateOrderStatus(ctx, o)
+}
+func (s *SuperTrendTrader) deleteOrder(ctx context.Context, o Order) {
+	s.updateOrderStatus(ctx, o)
+}
+func (s *SuperTrendTrader) updateOrderStatus(ctx context.Context, o Order) {
+	coll := s.db.Collection(collNameOrder)
+	option := &options.FindOneAndUpdateOptions{}
+	option.SetUpsert(true)
+	if r := coll.FindOneAndUpdate(
+		ctx,
+		bson.D{
+			{"_id", o.Id},
+		},
+		bson.D{
+			{"$set", bson.D{
+				{"status", o.Status},
+				{"updated", o.Updated},
+			}},
+		},
+		option,
+	); r.Err() != nil {
+		logger.Sugar.Errorf("create order error: %s", r.Err())
+	}
+}
+
+func (s *SuperTrendTrader) checkSellStopOrder(ctx context.Context) {
+	if s.sellStopOrderId == 0 {
+		logger.Sugar.Info("no sell-stop order")
+		return
+	}
+	o, err := s.ex.GetOrderById(uint64(s.sellStopOrderId), s.longSymbol)
+	if err != nil {
+		logger.Sugar.Infof("get sell-stop order error: %s", err)
+		return
+	}
+	if o.Status == "filled" || o.Status == "cancelled" {
+		s.sellStopOrderId = 0
+		if err := s.saveInt64(context.Background(), "sellStopOrderId", s.sellStopOrderId); err != nil {
+			logger.Sugar.Errorf("save sellStopOrderId error: %s", err)
+		}
 	}
 }
 
