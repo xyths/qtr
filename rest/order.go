@@ -30,13 +30,19 @@ type Trade struct {
 
 // sell-stop order, save in mongoDB
 type SellStopOrder struct {
+	Name string // always "sellStopOrder"
+
 	Id        int64
-	//ClientId  string `bson:"clientId"`
-	//Type      string
+	ClientId  string `bson:"clientId"`
 	Price     string
-	//StopPrice string `bson:"stopPrice"`
-	//Amount    string
-	//Total     string
-	//Time      string
-	//Status    string
+	StopPrice string `bson:"stopPrice"`
+	Amount    string
+	Total     string
+	Time      string
+
+	// created (not submitted),
+	// submitted,
+	// partial-filled, filled,
+	// partial-canceled, canceled
+	Status string
 }
