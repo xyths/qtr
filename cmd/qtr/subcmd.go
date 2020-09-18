@@ -291,24 +291,30 @@ func turtleClearAction(ctx *cli.Context) error {
 func superTrend(ctx *cli.Context) error {
 	configFile := ctx.String(utils.ConfigFlag.Name)
 	dry := ctx.Bool(utils.DryRunFlag.Name)
-	t := ws.NewSuperTrendTrader(configFile)
-	t.Init(ctx.Context)
+	t, err := ws.NewSuperTrendTrader(ctx.Context, configFile)
+	if err != nil {
+		return err
+	}
 	defer t.Close(ctx.Context)
 	return t.Start(ctx.Context, dry)
 }
 
 func superTrendPrint(ctx *cli.Context) error {
 	configFile := ctx.String(utils.ConfigFlag.Name)
-	t := ws.NewSuperTrendTrader(configFile)
-	t.Init(ctx.Context)
+	t, err := ws.NewSuperTrendTrader(ctx.Context, configFile)
+	if err != nil {
+		return err
+	}
 	defer t.Close(ctx.Context)
 	return t.Print(ctx.Context)
 }
 
 func superTrendClear(ctx *cli.Context) error {
 	configFile := ctx.String(utils.ConfigFlag.Name)
-	t := ws.NewSuperTrendTrader(configFile)
-	t.Init(ctx.Context)
+	t, err := ws.NewSuperTrendTrader(ctx.Context, configFile)
+	if err != nil {
+		return err
+	}
 	defer t.Close(ctx.Context)
 	return t.Clear(ctx.Context)
 }

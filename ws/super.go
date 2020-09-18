@@ -2,6 +2,7 @@ package ws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/huobirdcenter/huobi_golang/pkg/model/market"
 	"github.com/huobirdcenter/huobi_golang/pkg/model/order"
@@ -77,42 +78,52 @@ const (
 
 var emptySellStopOrder = rest.SellStopOrder{Name: "sellStopOrder"}
 
-func NewSuperTrendTrader(configFilename string) *SuperTrendTrader {
+func NewSuperTrendTrader(ctx context.Context, configFilename string) (*SuperTrendTrader, error) {
 	cfg := SuperTrendConfig{}
 	if err := hs.ParseJsonConfig(configFilename, &cfg); err != nil {
-		logger.Sugar.Fatal(err)
+		return nil, err
 	}
 	interval, err := time.ParseDuration(cfg.Strategy.Interval)
 	if err != nil {
 		logger.Sugar.Fatalf("error interval format: %s", cfg.Strategy.Interval)
 	}
-	return &SuperTrendTrader{
+	s := &SuperTrendTrader{
 		config:        cfg,
 		interval:      interval,
 		ch:            make(chan int64, 1),
 		sellStopOrder: emptySellStopOrder,
 		maxTotal:      decimal.NewFromFloat(cfg.Strategy.Total / 2),
 	}
+	err = s.Init(ctx)
+	return s, err
 }
 
-func (s *SuperTrendTrader) Init(ctx context.Context) {
-	s.initLogger()
+func (s *SuperTrendTrader) Init(ctx context.Context) error {
+	if err := s.initLogger(); err != nil {
+		return err
+	}
 	db, err := hs.ConnectMongo(ctx, s.config.Mongo)
 	if err != nil {
-		s.Sugar.Fatal(err)
+		return err
 	}
 	s.db = db
 	s.candle = hs.NewCandle(2000)
-	s.initEx(ctx)
+	if err := s.initEx(ctx); err != nil {
+		return err
+	}
 	s.initRobots(ctx)
 	s.Sugar.Info("SuperTrendTrader initialized")
+	return nil
 }
 
 func (s *SuperTrendTrader) Close(ctx context.Context) {
 	if s.db != nil {
 		_ = s.db.Client().Disconnect(ctx)
 	}
-	s.Sugar.Sync()
+	if s.Sugar != nil {
+		s.Sugar.Info("SuperTrendTrader stopped")
+		s.Sugar.Sync()
+	}
 }
 
 func (s *SuperTrendTrader) Print(ctx context.Context) error {
@@ -169,23 +180,26 @@ func (s *SuperTrendTrader) Start(ctx context.Context, dry bool) error {
 	return nil
 }
 
-func (s *SuperTrendTrader) initLogger() {
+func (s *SuperTrendTrader) initLogger() error {
 	logger, err := hs.NewZapLogger(s.config.Log.Level, s.config.Log.Outputs, s.config.Log.Errors)
 	if err != nil {
-		log.Fatalf("setup log error: %s", err)
+		return err
 	}
 	s.Sugar = logger.Sugar()
 	s.Sugar.Info("Logger initialized")
+	return nil
 }
 
-func (s *SuperTrendTrader) initEx(ctx context.Context) {
+func (s *SuperTrendTrader) initEx(ctx context.Context) error {
 	switch s.config.Exchange.Name {
 	case "gate":
 		s.initGate(ctx)
 	case "huobi":
-		s.initHuobi(ctx)
+		if err := s.initHuobi(ctx); err != nil {
+			return err
+		}
 	default:
-		s.Sugar.Fatalf("unsupported exchange")
+		return errors.New("unsupported exchange")
 	}
 	s.Sugar.Info("Exchange initialized")
 	s.Sugar.Infof(
@@ -194,19 +208,25 @@ func (s *SuperTrendTrader) initEx(ctx context.Context) {
 		s.PricePrecision(), s.AmountPrecision(),
 		s.MinAmount(), s.MinTotal(),
 	)
+	return nil
 }
 
 func (s *SuperTrendTrader) initGate(ctx context.Context) {
 	//s.ex = gateio.New(s.config.Exchange.Key, s.config.Exchange.Secret, s.config.Exchange.Host)
 }
 
-func (s *SuperTrendTrader) initHuobi(ctx context.Context) {
-	s.ex = huobi.New(s.config.Exchange.Label, s.config.Exchange.Key, s.config.Exchange.Secret, s.config.Exchange.Host)
-	if symbol, err := s.ex.GetSymbol(s.config.Exchange.Symbols[0]); err != nil {
-		s.Sugar.Fatalf("get symbol error: %s", err)
-	} else {
-		s.symbol = symbol
+func (s *SuperTrendTrader) initHuobi(ctx context.Context) error {
+	ex, err := huobi.New(s.config.Exchange.Label, s.config.Exchange.Key, s.config.Exchange.Secret, s.config.Exchange.Host)
+	if err != nil {
+		return err
 	}
+	s.ex = ex
+	symbol, err := s.ex.GetSymbol(s.config.Exchange.Symbols[0])
+	if err != nil {
+		return err
+	}
+	s.symbol = symbol
+	return nil
 }
 
 func (s *SuperTrendTrader) initRobots(ctx context.Context) {
