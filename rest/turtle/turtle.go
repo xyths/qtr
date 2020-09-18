@@ -290,12 +290,12 @@ func (t *Trader) openPosition(ctx context.Context, N float64) {
 		return
 	}
 	if total.GreaterThanOrEqual(cash) {
-		amount = cash.Div(price).Round(t.amountPrecision)
+		amount = cash.DivRound(price, t.amountPrecision)
 		total = price.Mul(amount)
 	}
 	if total.LessThan(t.minTotal) {
 		total = t.minTotal
-		amount = total.Div(price).Round(t.amountPrecision)
+		amount = total.DivRound(price, t.amountPrecision)
 	}
 	if amount.LessThan(t.minAmount) {
 		amount = t.minAmount
@@ -339,12 +339,12 @@ func (t *Trader) addPosition(ctx context.Context, N float64) {
 		return
 	}
 	if total.GreaterThanOrEqual(cash) {
-		amount = cash.Div(price).Round(t.amountPrecision)
+		amount = cash.DivRound(price, t.amountPrecision)
 		total = price.Mul(amount)
 	}
 	if total.LessThan(t.minTotal) {
 		total = t.minTotal
-		amount = total.Div(price).Round(t.amountPrecision)
+		amount = total.DivRound(price, t.amountPrecision)
 	}
 	if amount.LessThan(t.minAmount) {
 		amount = t.minAmount

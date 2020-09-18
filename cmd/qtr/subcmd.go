@@ -6,11 +6,11 @@ import (
 	"github.com/xyths/qtr/cmd/utils"
 	"github.com/xyths/qtr/history"
 	"github.com/xyths/qtr/node"
-	"github.com/xyths/qtr/rest"
 	"github.com/xyths/qtr/rest/grid"
 	"github.com/xyths/qtr/rest/turtle"
 	"github.com/xyths/qtr/ta/atr"
 	"github.com/xyths/qtr/ta/natr"
+	"github.com/xyths/qtr/ws"
 )
 
 var (
@@ -291,7 +291,7 @@ func turtleClearAction(ctx *cli.Context) error {
 func superTrend(ctx *cli.Context) error {
 	configFile := ctx.String(utils.ConfigFlag.Name)
 	dry := ctx.Bool(utils.DryRunFlag.Name)
-	t := rest.NewSuperTrendTrader(configFile)
+	t := ws.NewSuperTrendTrader(configFile)
 	t.Init(ctx.Context)
 	defer t.Close(ctx.Context)
 	return t.Start(ctx.Context, dry)
@@ -299,7 +299,7 @@ func superTrend(ctx *cli.Context) error {
 
 func superTrendPrint(ctx *cli.Context) error {
 	configFile := ctx.String(utils.ConfigFlag.Name)
-	t := rest.NewSuperTrendTrader(configFile)
+	t := ws.NewSuperTrendTrader(configFile)
 	t.Init(ctx.Context)
 	defer t.Close(ctx.Context)
 	return t.Print(ctx.Context)
@@ -307,7 +307,7 @@ func superTrendPrint(ctx *cli.Context) error {
 
 func superTrendClear(ctx *cli.Context) error {
 	configFile := ctx.String(utils.ConfigFlag.Name)
-	t := rest.NewSuperTrendTrader(configFile)
+	t := ws.NewSuperTrendTrader(configFile)
 	t.Init(ctx.Context)
 	defer t.Close(ctx.Context)
 	return t.Clear(ctx.Context)

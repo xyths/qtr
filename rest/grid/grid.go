@@ -110,7 +110,7 @@ func (r *RestGridTrader) initGrids(ctx context.Context) {
 	r.grids = append(r.grids, currentGrid)
 	for i := 1; i <= number; i++ {
 		currentPrice = currentPrice.Mul(r.scale).Round(r.pricePrecision)
-		amountBuy := preTotal.Div(currentPrice).Round(r.amountPrecision)
+		amountBuy := preTotal.DivRound(currentPrice, r.amountPrecision)
 		if amountBuy.LessThan(r.minAmount) {
 			log.Fatalf("amount %s less than minAmount(%s)", amountBuy, r.minAmount)
 		}
@@ -393,7 +393,7 @@ func (r *RestGridTrader) assetRebalancing(moneyNeed, coinNeed, moneyHeld, coinHe
 	if moneyNeed.GreaterThan(moneyHeld) {
 		// sell coin
 		moneyDelta := moneyNeed.Sub(moneyHeld)
-		sellAmount := moneyDelta.Div(price).Round(r.amountPrecision)
+		sellAmount := moneyDelta.DivRound(price, r.amountPrecision)
 		if coinHeld.LessThan(coinNeed.Add(sellAmount)) {
 			logger.Sugar.Errorf("no enough coin for rebalance: need hold %s and sell %s (%s in total), only have %s",
 				coinNeed, sellAmount, coinNeed.Add(sellAmount), coinHeld)

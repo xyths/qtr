@@ -4,28 +4,29 @@ import "time"
 
 // for mongodb
 type Order struct {
-	Id            int64
+	Id            uint64 `bson:"_id"`
 	ClientOrderId string `bson:"clientOrderId"`
 	Type          string
 	Price         string
+	StopPrice     string `bson:"stopPrice"`
 	Amount        string
 	Total         string
 
 	Status string
 
-	Trades []Trade
+	Trades []Trade `bson:",omitempty"`
 
 	Updated time.Time
 }
 
 type Trade struct {
-	Id     int64
+	Id     uint64
 	Price  string
 	Amount string
 	Total  string
 	Remain string
 
-	Time string
+	Time time.Time
 }
 
 // sell-stop order, save in mongoDB

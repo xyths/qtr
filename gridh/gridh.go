@@ -161,7 +161,7 @@ func (t *Trader) initOneGrids(price decimal.Decimal) (grids []hs.Grid, base int)
 		if p1.GreaterThan(price) {
 			base++
 		}
-		amountBuy := total.Div(p1).Round(t.amountPrecision)
+		amountBuy := total.DivRound(p1, t.amountPrecision)
 		if amountBuy.LessThan(t.minAmount) {
 			Sugar.Fatalf("amount %s is less than minAmount %s", amountBuy, t.minAmount)
 		}
