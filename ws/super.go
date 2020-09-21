@@ -275,8 +275,8 @@ func (s *SuperTrendTrader) buy(symbol string, price, stopPrice decimal.Decimal, 
 	}
 	amount := maxTotal.DivRound(price, amountPrecision)
 	total := amount.Mul(price)
-	if amount.LessThan(minAmount) || total.LessThan(minTotal) {
-		s.Sugar.Infof("amount (%s / %s) or total (%s / %s) is too small", amount, minAmount, total, minTotal)
+	if amount.LessThan(minAmount) { //|| total.LessThan(minTotal) or total (%s / %s), total, minTotal
+		s.Sugar.Infof("amount (%s / %s) is too small", amount, minAmount)
 		//full
 		s.position = 1
 		if err := s.saveInt64(context.Background(), "position", s.position); err != nil {
@@ -298,8 +298,8 @@ func (s *SuperTrendTrader) buy(symbol string, price, stopPrice decimal.Decimal, 
 		Updated:       time.Now(),
 	}
 	s.addOrder(context.Background(), o)
-	s.Sugar.Infof("市价买入，订单号: %d / %s, total: %s", orderId, clientId, total)
-	s.Broadcast("市价买入，订单号: %d / %s, 买入金额: %s", orderId, clientId, total)
+	s.Sugar.Infof("限价买入，订单号: %d / %s, price: %s, amount: %s, total: %s", orderId, clientId, price, amount, total)
+	s.Broadcast("限价买入，订单号: %d / %s, 价格: %s, 数量: %s, 买入总金额: %s", orderId, clientId, price, amount, total)
 
 	s.position = 1
 	if err := s.saveInt64(context.Background(), "position", s.position); err != nil {
@@ -481,7 +481,7 @@ func (s *SuperTrendTrader) Broadcast(format string, a ...interface{}) {
 	layout := "2006-01-02 15:04:05"
 	timeStr := time.Now().In(beijing).Format(layout)
 
-	msg := fmt.Sprintf("%s [%s] %s", timeStr, strings.Join(labels, "] ["), message)
+	msg := fmt.Sprintf("%s [%s] [%s] %s", timeStr, strings.Join(labels, "] ["), s.Symbol(), message)
 	for _, robot := range s.robots {
 		if err := robot.SendText(msg); err != nil {
 			s.Sugar.Infof("broadcast error: %s", err)
