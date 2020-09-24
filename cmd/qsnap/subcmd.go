@@ -6,32 +6,9 @@ import (
 	"github.com/xyths/qtr/snapshot"
 )
 
-var (
-	huobiCommand = &cli.Command{
-		Action: huobi,
-		Name:   "huobi",
-		Usage:  "Asset snapshot for huobi account",
-		Flags: []cli.Flag{
-			utils.ConfigFlag,
-		},
-	}
-	gateCommand = &cli.Command{
-		Action: gate,
-		Name:   "gate",
-		Usage:  "Asset snapshot for gate account",
-		Flags: []cli.Flag{
-			utils.ConfigFlag,
-		},
-	}
-)
-
-func huobi(ctx *cli.Context) error {
+func snap(ctx *cli.Context) error {
 	config := ctx.String(utils.ConfigFlag.Name)
 	snap := snapshot.New(config)
-	snap.Do(ctx.Context)
-	return nil
-}
-
-func gate(ctx *cli.Context) error {
+	snap.Snapshot(ctx.Context)
 	return nil
 }

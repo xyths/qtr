@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/urfave/cli/v2"
+	"github.com/xyths/qtr/cmd/utils"
 	"os"
 	"path/filepath"
 )
@@ -12,13 +13,12 @@ var app *cli.App
 func init() {
 	app = &cli.App{
 		Name:    filepath.Base(os.Args[0]),
-		Usage:   "snapshot the asset of exchange",
-		Version: "0.1.0",
+		Usage:   "snapshot the asset of exchange account",
+		Version: "0.1.2",
+		Action:  snap,
 	}
-
-	app.Commands = []*cli.Command{
-		huobiCommand,
-		gateCommand,
+	app.Flags = []cli.Flag{
+		utils.ConfigFlag,
 	}
 }
 

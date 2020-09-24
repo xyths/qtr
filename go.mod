@@ -4,6 +4,7 @@ go 1.13
 
 require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
+	github.com/google/martian v2.1.0+incompatible
 	github.com/huobirdcenter/huobi_golang v0.0.0-20200821050931-75de5c6fcc0e
 	github.com/jinzhu/gorm v1.9.12
 	github.com/markcheno/go-talib v0.0.0-20190307022042-cd53a9264d70
@@ -15,7 +16,7 @@ require (
 	github.com/thrasher-corp/gocryptotrader v0.0.0-20200710060040-409fc6478ecc
 	github.com/urfave/cli/v2 v2.2.0
 	github.com/xyths/go-indicators v0.1.0
-	github.com/xyths/hs v0.15.0
+	github.com/xyths/hs v0.17.1
 	go.mongodb.org/mongo-driver v1.4.1
 	go.uber.org/zap v1.16.0
 	golang.org/x/net v0.0.0-20200324143707-d3edc9973b7e

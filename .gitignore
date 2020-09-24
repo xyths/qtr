@@ -13,6 +13,7 @@ wsq
 wsq.*
 qsnap.*
 grid_linux.*
+qsnap*
 
 # Test binary, built with `go test -c`
 *.test
