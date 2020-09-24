@@ -6,44 +6,52 @@ import "time"
 type Order struct {
 	Id            uint64 `bson:"_id"`
 	ClientOrderId string `bson:"clientOrderId"`
-	Type          string
-	Price         string
-	StopPrice     string `bson:"stopPrice"`
-	Amount        string
-	Total         string
-
-	Status string
-
-	Trades []Trade `bson:",omitempty"`
-
-	Updated time.Time
-}
-
-type Trade struct {
-	Id     uint64
-	Price  string
-	Amount string
-	Total  string
-	Remain string
-
-	Time time.Time
-}
-
-// sell-stop order, save in mongoDB
-type SellStopOrder struct {
-	Name string // always "sellStopOrder"
-
-	Id        int64
-	ClientId  string `bson:"clientId"`
-	Price     string
-	StopPrice string `bson:"stopPrice"`
-	Amount    string
-	Total     string
-	Time      string
+	Type          string `bson:",omitempty"`
+	Price         string `bson:",omitempty"`
+	StopPrice     string `bson:"stopPrice,omitempty"`
+	Amount        string `bson:",omitempty"`
+	Total         string `bson:",omitempty"`
+	Time          string `bson:",omitempty"`
 
 	// created (not submitted),
 	// submitted,
 	// partial-filled, filled,
 	// partial-canceled, canceled
-	Status string
+	Status string `bson:",omitempty"`
+
+	Trades []Trade `bson:",omitempty"`
+
+	Updated time.Time `bson:",omitempty"`
+}
+
+type Trade struct {
+	Id     uint64
+	Price  string `bson:",omitempty"`
+	Amount string `bson:",omitempty"`
+	Total  string `bson:",omitempty"`
+	Remain string `bson:",omitempty"`
+
+	Time time.Time `bson:",omitempty"`
+}
+
+type NamedOrder struct {
+	Name string
+	Order
+}
+
+type SellStopOrder = NamedOrder
+type ReinforceOrder = NamedOrder
+
+func (o *NamedOrder) Clear() {
+	o.Id = 0
+	o.ClientOrderId = ""
+	o.Type = ""
+	o.Price = ""
+	o.StopPrice = ""
+	o.Amount = ""
+	o.Total = ""
+	o.Time = ""
+	o.Status = ""
+	o.Trades = nil
+	o.Updated = time.Now()
 }
