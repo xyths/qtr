@@ -6,12 +6,16 @@ import "time"
 type Order struct {
 	Id            uint64 `bson:"_id"`
 	ClientOrderId string `bson:"clientOrderId"`
-	Type          string `bson:",omitempty"`
-	Price         string `bson:",omitempty"`
-	StopPrice     string `bson:"stopPrice,omitempty"`
-	Amount        string `bson:",omitempty"`
-	Total         string `bson:",omitempty"`
-	Time          string `bson:",omitempty"`
+
+	Type      string `bson:",omitempty"`
+	Price     string `bson:",omitempty"`
+	StopPrice string `bson:"stopPrice,omitempty"`
+	Amount    string `bson:",omitempty"`
+	Remain    string `bson:",omitempty"` // remain amount
+	Total     string `bson:",omitempty"`
+	Time      string `bson:",omitempty"`
+
+	Context map[string]string `bson:",omitempty"`
 
 	// created (not submitted),
 	// submitted,
@@ -39,6 +43,8 @@ type NamedOrder struct {
 	Order
 }
 
+type BuyOrder = NamedOrder
+type SellOrder = NamedOrder
 type SellStopOrder = NamedOrder
 type ReinforceOrder = NamedOrder
 

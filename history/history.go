@@ -152,7 +152,7 @@ func (h *History) Export(ctx context.Context, start, end, csvfile string) error 
 	}
 	w.Flush()
 
-	trades, err := h.getUserTrades(ctx, startTime, endTime);
+	trades, err := h.getUserTrades(ctx, startTime, endTime)
 	if err != nil {
 		Sugar.Errorf("error when getUserAsset: %s", err)
 		return err

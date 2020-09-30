@@ -32,3 +32,11 @@ type GateBalance struct {
 	GtPrice   float64 `gorm:"Column:gt_price"`
 	Time      time.Time
 }
+
+func TimestampToDate(timestamp int64) string {
+	secondsEastOfUTC := int((8 * time.Hour).Seconds())
+	beijing := time.FixedZone("Beijing Time", secondsEastOfUTC)
+	layout := "2006-01-02 15:04:05"
+	return time.Unix(timestamp, 0).In(beijing).Format(layout)
+}
+

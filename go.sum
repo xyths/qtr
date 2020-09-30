@@ -413,10 +413,10 @@ github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2/go.mod h1:UETIi67q
 github.com/xordataexchange/crypt v0.0.3-0.20170626215501-b2862e3d0a77/go.mod h1:aYKd//L2LvnjZzWKhF00oedf4jCCReLcmhLdhm1A27Q=
 github.com/xyths/dingtalk-webhook v0.1.0 h1:XowRDJH2pxCS8cW9wRlD+ZRN23GdgYZNFFWw7Lxy2Dw=
 github.com/xyths/dingtalk-webhook v0.1.0/go.mod h1:MDesF3tQxWfkv7zBlAtWPVrG1hyVF6Sa5HpOjzsVD1k=
-github.com/xyths/go-indicators v0.1.0 h1:TeRkcmPaUps4KH6ism7yV3yrpa4RZAjfQY6umJ53K9Y=
-github.com/xyths/go-indicators v0.1.0/go.mod h1:QVOstYBvJTBiO7ipGLpqPOxAPQL7uK5CnIhZIuFUiL4=
-github.com/xyths/hs v0.17.1 h1:mOvSijYVLbKgKqY1GvvMWJeufIJQ4Ltbjg22Oil7YQk=
-github.com/xyths/hs v0.17.1/go.mod h1:JWklCQWOADQ/VfTv3jiJcWF/+/FmxKDnSiPAUkP5keU=
+github.com/xyths/go-indicators v0.3.0 h1:LTf9SfUN1SWMBi+Hqo45d4u2F26v28gwDF3yhVEHM0U=
+github.com/xyths/go-indicators v0.3.0/go.mod h1:QVOstYBvJTBiO7ipGLpqPOxAPQL7uK5CnIhZIuFUiL4=
+github.com/xyths/hs v0.19.0 h1:rqHqC/vLf7Mby130/YdKNP/vLYQVGz1Ug7iVcplW4EI=
+github.com/xyths/hs v0.19.0/go.mod h1:JWklCQWOADQ/VfTv3jiJcWF/+/FmxKDnSiPAUkP5keU=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.mongodb.org/mongo-driver v1.4.1 h1:38NSAyDPagwnFpUA/D5SFgbugUYR3NzYRNa4Qk9UxKs=
 go.mongodb.org/mongo-driver v1.4.1/go.mod h1:llVBH2pkj9HywK0Dtdt6lDikOjFLbceHVu/Rc0iMKLs=

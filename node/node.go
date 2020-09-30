@@ -212,7 +212,7 @@ func (n *Node) getUserAsset(ctx context.Context, u User) error {
 	//if err != nil {
 	//	return err
 	//}
-	//b := types.GateBalance{
+	//b := utils.GateBalance{
 	//	Label:     u.Label,
 	//	SERO:      convert.StrToFloat64(balances.Available["SERO"]) + convert.StrToFloat64(balances.Locked["SERO"]),
 	//	USDT:      convert.StrToFloat64(balances.Available["USDT"]) + convert.StrToFloat64(balances.Locked["USDT"]),

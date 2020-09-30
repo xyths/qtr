@@ -13,7 +13,7 @@ func Test_getClientOrderId(t *testing.T) {
 		{" ", "bbbb", 2, 3, 100000000, "bbbb 2 3 100000000"},
 	}
 	for i, tt := range tests {
-		got := getClientOrderId(tt.sep, tt.prefix, tt.short, tt.long, tt.unique)
+		got := GetClientOrderId(tt.sep, tt.prefix, tt.short, tt.long, tt.unique)
 		if tt.result != got {
 			t.Errorf("[%d] want %s, got %s", i, tt.result, got)
 		}

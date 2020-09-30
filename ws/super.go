@@ -14,6 +14,7 @@ import (
 	"github.com/xyths/hs/exchange/huobi"
 	"github.com/xyths/hs/logger"
 	"github.com/xyths/qtr/rest"
+	"github.com/xyths/qtr/types"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -173,7 +174,7 @@ func (s *SuperTrendTrader) Clear(ctx context.Context) error {
 	return nil
 }
 
-func (s *SuperTrendTrader) Start(ctx context.Context, dry bool) error {
+func (s *SuperTrendTrader) Start(ctx context.Context, dry bool) {
 	s.loadState(ctx)
 	s.checkState(ctx)
 	s.dry = dry
@@ -182,7 +183,7 @@ func (s *SuperTrendTrader) Start(ctx context.Context, dry bool) error {
 	}
 
 	// setup subscriber
-	go s.ex.SubscribeOrder(ctx, s.Symbol(), "super-order", s.OrderUpdateHandler)
+	s.ex.SubscribeOrder(s.Symbol(), "super-order", s.OrderUpdateHandler)
 
 	{
 		to := time.Now()
@@ -193,10 +194,11 @@ func (s *SuperTrendTrader) Start(ctx context.Context, dry bool) error {
 		}
 		s.candle.Add(candle)
 	}
-	go s.ex.SubscribeCandlestick(ctx, s.Symbol(), "super-tick", s.interval, s.tickerHandler)
-	// wait for candle
-	<-ctx.Done()
-	return nil
+	s.ex.SubscribeCandlestick(s.Symbol(), "super-tick", s.interval, s.tickerHandler)
+}
+func (s *SuperTrendTrader) Stop() {
+	s.ex.UnsubscribeCandlestick(s.Symbol(), "super-tick", s.interval)
+	s.ex.UnsubscribeOrder(s.Symbol(), "super-order")
 }
 
 func (s *SuperTrendTrader) initLogger() error {
@@ -320,13 +322,10 @@ func (s *SuperTrendTrader) buy(symbol string, price, stopPrice decimal.Decimal, 
 	if amount.LessThan(minAmount) { //|| total.LessThan(minTotal) or total (%s / %s), total, minTotal
 		s.Sugar.Infof("amount (%s / %s) is too small", amount, minAmount)
 		//full
-		s.position = 1
-		if err := s.saveInt64(context.Background(), "position", s.position); err != nil {
-			s.Sugar.Infof("save position error: %s", err)
-		}
+		s.SetPosition(1)
 		return
 	}
-	clientId := getClientOrderId(sep, prefixBuyLimitOrder, s.ShortTimes, s.LongTimes+1, s.GetUniqueId())
+	clientId := GetClientOrderId(sep, prefixBuyLimitOrder, s.ShortTimes, s.LongTimes+1, s.GetUniqueId())
 	orderId, err := s.ex.BuyLimit(symbol, clientId, price, amount)
 	if err != nil {
 		s.Sugar.Errorf("buy error: %s", err)
@@ -343,12 +342,9 @@ func (s *SuperTrendTrader) buy(symbol string, price, stopPrice decimal.Decimal, 
 	s.Sugar.Infof("限价买入，订单号: %d / %s, price: %s, amount: %s, total: %s", orderId, clientId, price, amount, total)
 	s.Broadcast("限价买入，订单号: %d / %s, 价格: %s, 数量: %s, 买入总金额: %s", orderId, clientId, price, amount, total)
 
-	s.position = 1
-	if err := s.saveInt64(context.Background(), "position", s.position); err != nil {
-		s.Sugar.Infof("save position error: %s", err)
-	}
+	s.SetPosition(1)
 	s.LongTimes++
-	if err := s.saveInt64(context.Background(), "longTimes", s.LongTimes); err != nil {
+	if err := hs.SaveInt64(context.Background(), s.db.Collection(collNameState), "longTimes", s.LongTimes); err != nil {
 		s.Sugar.Infof("save longTimes error: %s", err)
 	}
 }
@@ -372,13 +368,10 @@ func (s *SuperTrendTrader) sell(symbol, currency string, amountPrecision int32, 
 	//logger.Sugar.Debugf("try to sell %s, balance: %v, amount: %s, price: %s", symbol, balance, amount, price)
 	if amount.LessThan(minAmount) {
 		s.Sugar.Infof("amount too small: %s", amount)
-		s.position = -1
-		if err := s.saveInt64(context.Background(), "position", s.position); err != nil {
-			s.Sugar.Infof("save position error: %s", err)
-		}
+		s.SetPosition(-1)
 		return
 	}
-	clientId := getClientOrderId(sep, prefixSellMarketOrder, s.ShortTimes+1, s.LongTimes, s.GetUniqueId())
+	clientId := GetClientOrderId(sep, prefixSellMarketOrder, s.ShortTimes+1, s.LongTimes, s.GetUniqueId())
 	orderId, err := s.ex.SellMarket(symbol, clientId, amount)
 	if err != nil {
 		s.Sugar.Errorf("sell error: %s", err)
@@ -389,12 +382,9 @@ func (s *SuperTrendTrader) sell(symbol, currency string, amountPrecision int32, 
 	s.Sugar.Infof("市价清仓，订单号: %d / %s, amount: %s", orderId, clientId, amount)
 	s.Broadcast("市价清仓，订单号: %d / %s, 卖出数量: %s", orderId, clientId, amount)
 
-	s.position = -1
-	if err := s.saveInt64(context.Background(), "position", s.position); err != nil {
-		s.Sugar.Infof("save position error: %s", err)
-	}
+	s.SetPosition(-1)
 	s.ShortTimes++
-	if err := s.saveInt64(context.Background(), "shortTimes", s.ShortTimes); err != nil {
+	if err := hs.SaveInt64(context.Background(), s.db.Collection(collNameState), "shortTimes", s.ShortTimes); err != nil {
 		s.Sugar.Infof("save shortTimes error: %s", err)
 	}
 }
@@ -444,24 +434,18 @@ func (s *SuperTrendTrader) sellStopLimit(symbol, currency string, price decimal.
 		symbol, balance, amount, price, price.Mul(amount))
 	if amount.LessThan(minAmount) {
 		s.Sugar.Infof("amount too small: %s (need %s)", amount, minAmount)
-		s.position = -1
-		if err := s.saveInt64(context.Background(), "position", s.position); err != nil {
-			s.Sugar.Infof("save position error: %s", err)
-		}
+		s.SetPosition(-1)
 		s.Sugar.Info("update position to `clear`")
 		return nil, nil
 	}
 	total := price.Mul(amount)
 	if total.LessThan(minTotal) {
 		s.Sugar.Infof("total too small: %s (need %s)", total, minTotal)
-		s.position = -1
-		if err := s.saveInt64(context.Background(), "position", s.position); err != nil {
-			s.Sugar.Infof("save position error: %s", err)
-		}
+		s.SetPosition(-1)
 		s.Sugar.Info("update position to `clear`")
 		return nil, nil
 	}
-	clientId := getClientOrderId(sep, prefixSellStopOrder, s.ShortTimes, s.LongTimes, s.GetUniqueId())
+	clientId := GetClientOrderId(sep, prefixSellStopOrder, s.ShortTimes, s.LongTimes, s.GetUniqueId())
 	orderId, err := s.ex.SellStopLimit(symbol, clientId, price, amount, price)
 	if err != nil {
 		s.Sugar.Errorf("sell-stop error: %s", err)
@@ -496,10 +480,7 @@ func (s *SuperTrendTrader) cancelSellStop() {
 			s.Sugar.Errorf("cancel sell-stop-limit order error: %s", err)
 		} else {
 			s.Sugar.Infof("cancelled sell-stop-limit order %s / %d", s.sellStopOrder.ClientOrderId, s.sellStopOrder.Id)
-			s.sellStopOrder = emptySellStopOrder
-			if err := s.saveKey(context.Background(), s.sellStopOrder.Name, s.sellStopOrder); err != nil {
-				s.Sugar.Errorf("save sellStopOrder error: %s", err)
-			}
+			s.SetSellStopOrder(emptySellStopOrder)
 		}
 	}
 }
@@ -521,10 +502,7 @@ func (s *SuperTrendTrader) updateSellStop(price decimal.Decimal, force bool) {
 			s.Sugar.Errorf("cancel sell-stop-limit order error: %s", err)
 		} else {
 			s.Sugar.Infof("cancelled sell-stop-limit order %s / %d", s.sellStopOrder.ClientOrderId, s.sellStopOrder.Id)
-			s.sellStopOrder = emptySellStopOrder
-			if err := s.saveKey(context.Background(), s.sellStopOrder.Name, s.sellStopOrder); err != nil {
-				s.Sugar.Errorf("save sellStopOrder error: %s", err)
-			}
+			s.SetSellStopOrder(emptySellStopOrder)
 		}
 	}
 
@@ -535,10 +513,7 @@ func (s *SuperTrendTrader) updateSellStop(price decimal.Decimal, force bool) {
 	); err != nil {
 		s.Sugar.Errorf("sell-stop error: %s", err)
 	} else if sso != nil {
-		s.sellStopOrder = *sso
-		if err := s.saveKey(context.Background(), s.sellStopOrder.Name, s.sellStopOrder); err != nil {
-			s.Sugar.Errorf("save sellStopOrder error: %s", err)
-		}
+		s.SetSellStopOrder(*sso)
 	}
 }
 
@@ -574,7 +549,7 @@ func (s *SuperTrendTrader) reinforceBuy(price decimal.Decimal) {
 		s.Sugar.Infof("amount (%s / %s) is too small", amount, s.MinAmount())
 		return
 	}
-	clientId := getClientOrderId(sep, prefixBuyReinforceOrder, s.ShortTimes, s.LongTimes+1, s.GetUniqueId())
+	clientId := GetClientOrderId(sep, prefixBuyReinforceOrder, s.ShortTimes, s.LongTimes+1, s.GetUniqueId())
 	orderId, err := s.ex.BuyLimit(s.Symbol(), clientId, price, amount)
 	if err != nil {
 		s.Sugar.Errorf("buy error: %s", err)
@@ -587,7 +562,8 @@ func (s *SuperTrendTrader) reinforceBuy(price decimal.Decimal) {
 		Updated:       time.Now(),
 	}
 	s.reinforceBuyOrder.Order = o
-	if err := s.saveKey(context.Background(), s.reinforceBuyOrder.Name, s.reinforceBuyOrder); err != nil {
+	coll := s.db.Collection(collNameState)
+	if err := hs.SaveKey(context.Background(), coll, s.reinforceBuyOrder.Name, s.reinforceBuyOrder); err != nil {
 		s.Sugar.Errorf("save reinforceOrder error: %s", err)
 	}
 	s.addOrder(context.Background(), o)
@@ -623,7 +599,7 @@ func (s *SuperTrendTrader) reinforceSell(price, amount decimal.Decimal) {
 		return
 	}
 	price = price.Round(s.PricePrecision())
-	clientId := getClientOrderId(sep, prefixSellReinforceOrder, s.ShortTimes+1, s.LongTimes, s.GetUniqueId())
+	clientId := GetClientOrderId(sep, prefixSellReinforceOrder, s.ShortTimes+1, s.LongTimes, s.GetUniqueId())
 	orderId, err := s.ex.SellLimit(s.Symbol(), clientId, price, amount)
 	if err != nil {
 		s.Sugar.Errorf("sell error: %s", err)
@@ -631,7 +607,8 @@ func (s *SuperTrendTrader) reinforceSell(price, amount decimal.Decimal) {
 	}
 	o := rest.Order{Id: orderId, ClientOrderId: clientId}
 	s.reinforceSellOrder.Order = o
-	if err := s.saveKey(context.Background(), s.reinforceSellOrder.Name, s.reinforceSellOrder); err != nil {
+	coll := s.db.Collection(collNameState)
+	if err := hs.SaveKey(context.Background(), coll, s.reinforceSellOrder.Name, s.reinforceSellOrder); err != nil {
 		s.Sugar.Errorf("save reinforceOrder error: %s", err)
 	}
 	s.addOrder(context.Background(), o)
@@ -649,7 +626,8 @@ func (s *SuperTrendTrader) realCancelReinforce(o *rest.ReinforceOrder) {
 		s.Sugar.Infof("cancelled reinforce order %s / %d",
 			o.ClientOrderId, o.Id)
 		o.Clear()
-		if err := s.saveKey(context.Background(), o.Name, o); err != nil {
+		coll := s.db.Collection(collNameState)
+		if err := hs.SaveKey(context.Background(), coll, o.Name, o); err != nil {
 			s.Sugar.Errorf("save reinforceOrder error: %s", err)
 		}
 	}
@@ -815,7 +793,7 @@ func (s *SuperTrendTrader) onTick(dry bool) {
 	for i := l - 3; i < l-1; i++ {
 		s.Sugar.Debugf(
 			"[%d] %s %f %f %f %f, %f %v",
-			i, timestampToDate(s.candle.Timestamp[i]),
+			i, types.TimestampToDate(s.candle.Timestamp[i]),
 			s.candle.Open[i], s.candle.High[i], s.candle.Low[i], s.candle.Close[i],
 			tsl[i], trend[i],
 		)
@@ -844,117 +822,27 @@ func (s *SuperTrendTrader) onTick(dry bool) {
 	}
 }
 
-func (s *SuperTrendTrader) saveInt64(ctx context.Context, key string, value int64) error {
-	coll := s.db.Collection(collNameState)
-	option := &options.UpdateOptions{}
-	option.SetUpsert(true)
-
-	_, err := coll.UpdateOne(ctx,
-		bson.D{
-			{"key", key},
-		},
-		bson.D{
-			{"$set", bson.D{
-				{"value", value},
-			}},
-			{"$currentDate", bson.D{
-				{"lastModified", true},
-			}},
-		},
-		option,
-	)
-	return err
-}
-func (s *SuperTrendTrader) loadInt64(ctx context.Context, key string) (int64, error) {
-	coll := s.db.Collection(collNameState)
-	var state = struct {
-		Key          string
-		Value        int64
-		LastModified time.Time
-	}{}
-	if err := coll.FindOne(ctx, bson.D{
-		{"key", key},
-	}).Decode(&state); err == mongo.ErrNoDocuments {
-		//s.Sugar.Errorf("load Position error: %s",err)
-		return 0, nil
-	} else if err != nil {
-		return 0, err
-	}
-	s.Sugar.Infof("load %s: %d, lastModified: %s", key, state.Value, state.LastModified.String())
-	return state.Value, nil
-}
-func (s *SuperTrendTrader) deleteInt64(ctx context.Context, key string) error {
-	coll := s.db.Collection(collNameState)
-	_, err := coll.DeleteOne(ctx, bson.D{
-		{"key", key},
-	})
-	return err
-}
-func (s *SuperTrendTrader) deleteKey(ctx context.Context, key string) error {
-	coll := s.db.Collection(collNameState)
-	_, err := coll.DeleteOne(ctx, bson.D{
-		{"name", key},
-	})
-	return err
-}
-func (s *SuperTrendTrader) saveKey(ctx context.Context, key string, value interface{}) error {
-	coll := s.db.Collection(collNameState)
-	option := &options.UpdateOptions{}
-	option.SetUpsert(true)
-
-	_, err := coll.UpdateOne(ctx,
-		bson.D{
-			{"name", key},
-		},
-		bson.D{
-			{"$set", bson.D{
-				{"value", value},
-			}},
-			{"$currentDate", bson.D{
-				{"lastModified", true},
-			}},
-		},
-		option,
-	)
-	return err
-}
-func (s *SuperTrendTrader) loadKey(ctx context.Context, key string, value interface{}) error {
-	coll := s.db.Collection(collNameState)
-	raw, err := coll.FindOne(ctx, bson.D{
-		{"name", key},
-	}).DecodeBytes()
-	if err == mongo.ErrNoDocuments {
-		return nil
-	} else if err != nil {
-		return err
-	}
-	doc, err := raw.LookupErr("value")
-	if err != nil {
-		return err
-	}
-	return doc.Unmarshal(value)
-}
-
 func (s *SuperTrendTrader) loadState(ctx context.Context) {
-	if uniqueId, err := s.loadInt64(ctx, "uniqueId"); err != nil {
+	coll := s.db.Collection(collNameState)
+	if uniqueId, err := hs.LoadInt64(ctx, coll, "uniqueId"); err != nil {
 		s.Sugar.Fatalf("load UniqueId error: %s", err)
 	} else if uniqueId != 0 {
 		s.uniqueId = uniqueId
 		s.Sugar.Infof("loaded UniqueId: %d", uniqueId)
 	}
-	if position, err := s.loadInt64(ctx, "position"); err != nil {
+	if position, err := hs.LoadInt64(ctx, coll, "position"); err != nil {
 		s.Sugar.Fatalf("load position error: %s", err)
 	} else if position != 0 {
 		s.position = position
 		s.Sugar.Infof("loaded position: %d", position)
 	}
-	if longTimes, err := s.loadInt64(ctx, "longTimes"); err != nil {
+	if longTimes, err := hs.LoadInt64(ctx, coll, "longTimes"); err != nil {
 		s.Sugar.Fatalf("load longTimes error: %s", err)
 	} else if longTimes != 0 {
 		s.LongTimes = longTimes
 		s.Sugar.Infof("loaded longTimes: %d", longTimes)
 	}
-	if shortTimes, err := s.loadInt64(ctx, "shortTimes"); err != nil {
+	if shortTimes, err := hs.LoadInt64(ctx, coll, "shortTimes"); err != nil {
 		s.Sugar.Fatalf("load shortTimes error: %s", err)
 	} else if shortTimes != 0 {
 		s.ShortTimes = shortTimes
@@ -962,7 +850,7 @@ func (s *SuperTrendTrader) loadState(ctx context.Context) {
 	}
 	if s.StopLoss() {
 		sellStopOrder := emptySellStopOrder
-		if err := s.loadKey(ctx, "sellStopOrder", &sellStopOrder); err != nil {
+		if err := hs.LoadKey(ctx, coll, "sellStopOrder", &sellStopOrder); err != nil {
 			s.Sugar.Fatalf("load sellStopOrder error: %s", err)
 		} else if sellStopOrder.Id != 0 {
 			s.sellStopOrder = sellStopOrder
@@ -971,14 +859,14 @@ func (s *SuperTrendTrader) loadState(ctx context.Context) {
 	}
 	if s.Reinforce() > 0 {
 		buy := emptyReinforceBuyOrder
-		if err := s.loadKey(ctx, buy.Name, &buy); err != nil {
+		if err := hs.LoadKey(ctx, coll, buy.Name, &buy); err != nil {
 			s.Sugar.Errorf("load reinforce buy order error: %s", err)
 		} else if buy.Id != 0 {
 			s.reinforceBuyOrder = buy
 			s.Sugar.Infof("loaded reinforceBuyOrder: %v", buy)
 		}
 		sell := emptyReinforceBuyOrder
-		if err := s.loadKey(ctx, sell.Name, &sell); err != nil {
+		if err := hs.LoadKey(ctx, coll, sell.Name, &sell); err != nil {
 			s.Sugar.Errorf("load reinforce sell order error: %s", err)
 		} else if sell.Id != 0 {
 			s.reinforceSellOrder = sell
@@ -989,25 +877,40 @@ func (s *SuperTrendTrader) loadState(ctx context.Context) {
 
 func (s *SuperTrendTrader) GetUniqueId() int64 {
 	s.uniqueId = (s.uniqueId + 1) % 10000
-
-	if err := s.saveInt64(context.Background(), "uniqueId", s.uniqueId); err != nil {
+	coll := s.db.Collection(collNameState)
+	if err := hs.SaveInt64(context.Background(), coll, "uniqueId", s.uniqueId); err != nil {
 		s.Sugar.Errorf("save uniqueId error: %s", err)
 	}
 	return s.uniqueId
 }
+func (s *SuperTrendTrader) SetPosition(newPosition int64) {
+	s.position = newPosition
+	coll := s.db.Collection(collNameState)
+	if err := hs.SaveInt64(context.Background(), coll, "position", s.position); err != nil {
+		s.Sugar.Errorf("save position error: %s", err)
+	}
+}
+func (s *SuperTrendTrader) SetSellStopOrder(newOrder rest.SellStopOrder) {
+	coll := s.db.Collection(collNameState)
+	s.sellStopOrder = newOrder
+	if err := hs.SaveKey(context.Background(), coll, s.sellStopOrder.Name, s.sellStopOrder); err != nil {
+		s.Sugar.Errorf("save sellStopOrder error: %s", err)
+	}
+}
 
 func (s *SuperTrendTrader) clearState(ctx context.Context) {
-	if err := s.deleteInt64(ctx, "longTimes"); err != nil {
+	coll := s.db.Collection(collNameState)
+	if err := hs.DeleteInt64(ctx, coll, "longTimes"); err != nil {
 		s.Sugar.Errorf("delete longTimes error: %s", err)
 	} else {
 		s.Sugar.Info("delete longTimes from database")
 	}
-	if err := s.deleteInt64(ctx, "shortTimes"); err != nil {
+	if err := hs.DeleteInt64(ctx, coll, "shortTimes"); err != nil {
 		s.Sugar.Errorf("delete shortTimes error: %s", err)
 	} else {
 		s.Sugar.Info("delete shortTimes from database")
 	}
-	if err := s.deleteInt64(ctx, "sellStopOrder"); err != nil {
+	if err := hs.DeleteInt64(ctx, coll, "sellStopOrder"); err != nil {
 		s.Sugar.Errorf("delete sellStopOrder error: %s", err)
 	} else {
 		s.Sugar.Info("delete sellStopOrder from database")
@@ -1028,8 +931,7 @@ func (s *SuperTrendTrader) addOrder(ctx context.Context, o rest.Order) {
 
 func (s *SuperTrendTrader) createOrder(ctx context.Context, o rest.Order) {
 	coll := s.db.Collection(collNameOrder)
-	option := &options.FindOneAndUpdateOptions{}
-	option.SetUpsert(true)
+	option := options.FindOneAndUpdate().SetUpsert(true)
 	if r := coll.FindOneAndUpdate(
 		ctx,
 		bson.D{
@@ -1054,8 +956,7 @@ func (s *SuperTrendTrader) fillOrder(ctx context.Context, o rest.Order, t rest.T
 	s.Broadcast("订单成交(%s), 订单号: %d / %s, 价格: %s, 数量: %s, 交易额: %s",
 		o.Status, o.Id, o.ClientOrderId, t.Price, t.Amount, t.Total)
 	coll := s.db.Collection(collNameOrder)
-	option := &options.FindOneAndUpdateOptions{}
-	option.SetUpsert(true)
+	option := options.FindOneAndUpdate().SetUpsert(true)
 	r := coll.FindOneAndUpdate(
 		ctx,
 		bson.D{
@@ -1078,15 +979,9 @@ func (s *SuperTrendTrader) fillOrder(ctx context.Context, o rest.Order, t rest.T
 
 	if strings.HasPrefix(o.ClientOrderId, prefixSellStopOrder) {
 		if o.Status == "filled" {
-			s.position = -1
-			if err := s.saveInt64(context.Background(), "position", s.position); err != nil {
-				s.Sugar.Infof("save position error: %s", err)
-			}
+			s.SetPosition(-1)
 			s.Sugar.Infof("sell-stop order %d is filled, change position to -1 (clear)", o.Id)
-			s.sellStopOrder = emptySellStopOrder
-			if err := s.saveKey(context.Background(), s.sellStopOrder.Name, s.sellStopOrder); err != nil {
-				s.Sugar.Errorf("save sellStopOrderId error: %s", err)
-			}
+			s.SetSellStopOrder(emptySellStopOrder)
 		}
 		// place buy-stop order?
 	} else if strings.HasPrefix(o.ClientOrderId, prefixBuyLimitOrder) {
@@ -1123,9 +1018,9 @@ func (s *SuperTrendTrader) fillOrder(ctx context.Context, o rest.Order, t rest.T
 			s.Sugar.Errorf("bad trade amount: %s", err)
 			return
 		}
-		p := decimal.NewFromInt(1).Add(s.fee.ActualMaker.Mul(decimal.NewFromFloat(2 + s.Reinforce())))
+		p := decimal.NewFromInt(1).Sub(s.fee.ActualMaker.Mul(decimal.NewFromFloat(2 + s.Reinforce())))
 		s.Sugar.Debugf("p is %s", p)
-		price = price.Mul(p)
+		price = price.DivRound(p.Mul(p), s.PricePrecision())
 		s.reinforceSell(price, amount)
 	} else if strings.HasPrefix(o.ClientOrderId, prefixSellReinforceOrder) {
 		// place buy
@@ -1136,7 +1031,7 @@ func (s *SuperTrendTrader) fillOrder(ctx context.Context, o rest.Order, t rest.T
 		}
 		p := decimal.NewFromInt(1).Sub(s.fee.ActualMaker.Mul(decimal.NewFromFloat(2 + s.Reinforce())))
 		s.Sugar.Debugf("p is %s", p)
-		price = price.Mul(p).Round(s.PricePrecision())
+		price = price.Mul(p).Mul(p).Round(s.PricePrecision())
 		s.reinforceBuy(price)
 	}
 }
@@ -1148,8 +1043,7 @@ func (s *SuperTrendTrader) deleteOrder(ctx context.Context, o rest.Order) {
 }
 func (s *SuperTrendTrader) updateOrderStatus(ctx context.Context, o rest.Order) {
 	coll := s.db.Collection(collNameOrder)
-	option := &options.FindOneAndUpdateOptions{}
-	option.SetUpsert(true)
+	option := options.FindOneAndUpdate().SetUpsert(true)
 	if r := coll.FindOneAndUpdate(
 		ctx,
 		bson.D{
@@ -1178,23 +1072,9 @@ func (s *SuperTrendTrader) checkSellStopOrder(ctx context.Context) {
 		return
 	}
 	if o.Status == "filled" || o.Status == "cancelled" {
-		s.sellStopOrder = emptySellStopOrder
-		if err := s.saveKey(ctx, s.sellStopOrder.Name, s.sellStopOrder); err != nil {
-			s.Sugar.Errorf("save sellStopOrderId error: %s", err)
-		}
+		s.SetSellStopOrder(emptySellStopOrder)
 	} else {
 		s.Sugar.Infof("sell-stop order id: %d / %s, price: %s, amount: %s, total: %s, status: %s, filled: %s",
 			o.Id, o.ClientOrderId, o.Price, o.Amount, o.Price.Mul(o.Amount), o.Status, o.FilledAmount)
 	}
-}
-
-func timestampToDate(timestamp int64) string {
-	secondsEastOfUTC := int((8 * time.Hour).Seconds())
-	beijing := time.FixedZone("Beijing Time", secondsEastOfUTC)
-	layout := "2006-01-02 15:04:05"
-	return time.Unix(timestamp, 0).In(beijing).Format(layout)
-}
-
-func getClientOrderId(sep, prefix string, short, long, unique int64) string {
-	return fmt.Sprintf("%[2]s%[1]s%[3]d%[1]s%[4]d%[1]s%[5]d", sep, prefix, short, long, unique)
 }

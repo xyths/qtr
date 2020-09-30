@@ -30,16 +30,28 @@ var (
 	}
 
 	InputCsvFlag = &cli.StringFlag{
-		Name:  "input",
+		Name:    "input",
 		Aliases: []string{"i"},
-		Value: "",
-		Usage: "read data from `csv`",
+		Value:   "input.csv",
+		Usage:   "read data from `csv`",
 	}
 	OutputCsvFlag = &cli.StringFlag{
-		Name:  "output",
+		Name:    "output",
 		Aliases: []string{"o"},
-		Value: "",
-		Usage: "write to `csv`",
+		Value:   "output.csv",
+		Usage:   "write to `csv`",
+	}
+	OutputPngFlag = &cli.StringFlag{
+		Name:    "output",
+		Aliases: []string{"o"},
+		Value:   "output.png",
+		Usage:   "write to `png`",
+	}
+	ExchangeFlag = &cli.StringFlag{
+		Name:    "exchange",
+		Aliases: []string{"ex"},
+		Value:   "huobi",
+		Usage:   "compute only the `exchange` symbols",
 	}
 	TestConfigFlag = &cli.BoolFlag{
 		Name:    "test",
