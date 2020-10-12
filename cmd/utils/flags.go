@@ -28,7 +28,12 @@ var (
 		Value:   "",
 		Usage:   "end `time` (e.g. \"2020-04-01 23:59:59\", default: now)",
 	}
-
+	ProtocolFlag = &cli.StringFlag{
+		Name:    "protocol",
+		Aliases: []string{"p"},
+		Value:   "ws",
+		Usage:   "protocol, rest/r, or ws/w",
+	}
 	InputCsvFlag = &cli.StringFlag{
 		Name:    "input",
 		Aliases: []string{"i"},

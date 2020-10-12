@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/shopspring/decimal"
 	"github.com/xyths/hs"
-	"github.com/xyths/qtr/rest"
+	"github.com/xyths/qtr/trader/rest"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"

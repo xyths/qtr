@@ -6,11 +6,13 @@ import (
 	"github.com/xyths/qtr/cmd/utils"
 	"github.com/xyths/qtr/history"
 	"github.com/xyths/qtr/node"
-	"github.com/xyths/qtr/rest/grid"
-	"github.com/xyths/qtr/rest/turtle"
 	"github.com/xyths/qtr/ta/atr"
 	"github.com/xyths/qtr/ta/natr"
-	"github.com/xyths/qtr/ws"
+	"github.com/xyths/qtr/trader"
+	"github.com/xyths/qtr/trader/rest"
+	"github.com/xyths/qtr/trader/rest/grid"
+	"github.com/xyths/qtr/trader/rest/turtle"
+	"github.com/xyths/qtr/trader/ws"
 )
 
 var (
@@ -105,6 +107,7 @@ var (
 			},
 		},
 		Flags: []cli.Flag{
+			utils.ProtocolFlag,
 			utils.DryRunFlag,
 		},
 	}
@@ -128,6 +131,31 @@ var (
 			},
 		},
 		Flags: []cli.Flag{
+			utils.ProtocolFlag,
+			utils.DryRunFlag,
+		},
+	}
+	squeezeCommand = &cli.Command{
+		Action: squeeze,
+		Name:   "squeeze",
+		Usage:  "Trading with Squeeze strategy",
+		Subcommands: []*cli.Command{
+			{
+				Action: squeezePrint,
+				Name:   "print",
+				Usage:  "Print the Squeeze state",
+			},
+			{
+				Action: squeezeClear,
+				Name:   "clear",
+				Usage:  "clear all Squeeze state in database, cancel pending orders",
+				Flags: []cli.Flag{
+					utils.DryRunFlag,
+				},
+			},
+		},
+		Flags: []cli.Flag{
+			utils.ProtocolFlag,
 			utils.DryRunFlag,
 		},
 	}
@@ -431,6 +459,54 @@ func rtmPrint(ctx *cli.Context) error {
 }
 
 func rtmClear(ctx *cli.Context) error {
+	//configFile := ctx.String(utils.ConfigFlag.Name)
+	//t, err := ws.NewSuperTrendTrader(ctx.Context, configFile)
+	//if err != nil {
+	//	return err
+	//}
+	//defer t.Close(ctx.Context)
+	//return t.Clear(ctx.Context)
+	return nil
+}
+
+func squeeze(ctx *cli.Context) error {
+	configFile := ctx.String(utils.ConfigFlag.Name)
+	dry := ctx.Bool(utils.DryRunFlag.Name)
+	protocol := ctx.String(utils.ProtocolFlag.Name)
+	var t trader.Trader
+	switch protocol {
+	case "r", "rest":
+		t1, err := rest.NewSqueezeMomentumTrader(ctx.Context, configFile)
+		if err != nil {
+			return err
+		}
+		t = t1
+	case "w", "ws":
+		//
+		//t, err := ws.NewRtmTrader(ctx.Context, configFile)
+		//if err != nil {
+		//	return err
+		//}
+	}
+	defer t.Close(ctx.Context)
+	t.Start(ctx.Context, dry)
+	<-ctx.Done()
+	t.Stop(ctx.Context)
+	return nil
+}
+
+func squeezePrint(ctx *cli.Context) error {
+	//configFile := ctx.String(utils.ConfigFlag.Name)
+	//t, err := ws.NewSuperTrendTrader(ctx.Context, configFile)
+	//if err != nil {
+	//	return err
+	//}
+	//defer t.Close(ctx.Context)
+	//return t.Print(ctx.Context)
+	return nil
+}
+
+func squeezeClear(ctx *cli.Context) error {
 	//configFile := ctx.String(utils.ConfigFlag.Name)
 	//t, err := ws.NewSuperTrendTrader(ctx.Context, configFile)
 	//if err != nil {

@@ -13,7 +13,7 @@ import (
 	"github.com/xyths/hs/exchange"
 	"github.com/xyths/hs/exchange/huobi"
 	"github.com/xyths/hs/logger"
-	"github.com/xyths/qtr/rest"
+	"github.com/xyths/qtr/trader/rest"
 	"github.com/xyths/qtr/types"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"

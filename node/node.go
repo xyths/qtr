@@ -12,7 +12,7 @@ import (
 	"github.com/xyths/qtr/exchange"
 	"github.com/xyths/qtr/exchange/huobi"
 	"github.com/xyths/qtr/gateio"
-	"github.com/xyths/qtr/rest/grid"
+	"github.com/xyths/qtr/trader/rest/grid"
 	"github.com/xyths/qtr/types"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"

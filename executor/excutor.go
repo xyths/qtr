@@ -7,7 +7,7 @@ import (
 	"github.com/xyths/hs"
 	"github.com/xyths/hs/exchange"
 	"github.com/xyths/hs/exchange/huobi"
-	"github.com/xyths/qtr/rest"
+	"github.com/xyths/qtr/trader/rest"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
 	"strings"

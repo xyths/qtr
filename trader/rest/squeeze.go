@@ -1,10 +1,10 @@
 package rest
 
 import (
+	"context"
 	"github.com/shopspring/decimal"
 	"github.com/xyths/hs"
 	"github.com/xyths/hs/broadcast"
-	"github.com/xyths/qtr/gateio"
 	"go.mongodb.org/mongo-driver/mongo"
 	"time"
 )
@@ -28,7 +28,7 @@ type SqueezeMomentumTrader struct {
 	interval time.Duration
 
 	db     *mongo.Database
-	ex     *gateio.GateIO
+	//ex     *executor.Executor
 	robots []broadcast.Broadcaster
 
 	quoteCurrency string // cash, eg. USDT
@@ -54,4 +54,28 @@ type SqueezeMomentumTrader struct {
 	ShortTimes int
 
 	//balance   map[string]decimal.Decimal
+}
+
+func NewSqueezeMomentumTrader(ctx context.Context, configFilename string) (*SqueezeMomentumTrader, error) {
+	return nil, nil
+}
+
+func (t *SqueezeMomentumTrader) Start(ctx context.Context, dry bool) {
+
+}
+
+func (t *SqueezeMomentumTrader) Stop(ctx context.Context) {
+
+}
+
+func (t *SqueezeMomentumTrader) Print(ctx context.Context) {
+
+}
+
+func (t *SqueezeMomentumTrader) Clear(ctx context.Context) {
+
+}
+
+func (t *SqueezeMomentumTrader) Close(ctx context.Context) {
+
 }
