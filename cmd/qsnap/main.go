@@ -14,11 +14,14 @@ func init() {
 	app = &cli.App{
 		Name:    filepath.Base(os.Args[0]),
 		Usage:   "snapshot the asset of exchange account",
-		Version: "0.1.2",
+		Version: "0.1.4",
 		Action:  snap,
 	}
 	app.Flags = []cli.Flag{
 		utils.ConfigFlag,
+	}
+	app.Commands = []*cli.Command{
+		logCommand,
 	}
 }
 

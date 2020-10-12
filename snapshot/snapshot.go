@@ -2,6 +2,7 @@ package snapshot
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/google/martian/log"
 	"github.com/shopspring/decimal"
@@ -10,6 +11,7 @@ import (
 	"github.com/xyths/hs/exchange/gateio"
 	"github.com/xyths/hs/exchange/huobi"
 	. "github.com/xyths/hs/logger"
+	"os"
 	"strings"
 	"time"
 )
@@ -17,12 +19,11 @@ import (
 type Config struct {
 	Exchanges []hs.ExchangeConf
 	Mongo     hs.MongoConf
+	Output    string
 }
 
 type Snapshot struct {
 	config Config
-
-	//ex exchange
 }
 
 func New(configFilename string) *Snapshot {
@@ -44,13 +45,13 @@ func (s *Snapshot) Snapshot(ctx context.Context) error {
 	defer db.Client().Disconnect(ctx)
 	balance := make(map[string]string)
 	for _, e := range s.config.Exchanges {
-		b, err := s.balance(ctx, e)
+		b, err := s.balance(e)
 		if err != nil {
 			log.Errorf("balance error: %s", err)
 			return err
 		}
 		key := fmt.Sprintf("%s-%s", e.Name, e.Label)
-		balance[key] = b
+		balance[key] = b.String()
 	}
 	balance["time"] = fmt.Sprintf("%d", time.Now().Unix())
 	Sugar.Info(balance)
@@ -58,7 +59,8 @@ func (s *Snapshot) Snapshot(ctx context.Context) error {
 	_, err = coll.InsertOne(ctx, balance)
 	return err
 }
-func (s *Snapshot) balance(ctx context.Context, e hs.ExchangeConf) (balance string, err error) {
+
+func (s *Snapshot) balance(e hs.ExchangeConf) (balance decimal.Decimal, err error) {
 	var ex exchange.RestAPIExchange
 	switch e.Name {
 	case "huobi":
@@ -88,7 +90,45 @@ func (s *Snapshot) balance(ctx context.Context, e hs.ExchangeConf) (balance stri
 		//Sugar.Debugf("%s price: %s", symbol, price)
 		cash = cash.Add(price.Mul(amount))
 	}
-	balance = cash.String()
-	//Sugar.Debugf("cash: %s", cash)
-	return balance, nil
+	return cash, nil
+}
+
+func (s *Snapshot) Log() error {
+	f, err := os.OpenFile(s.config.Output, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		Sugar.Error(err)
+		return err
+	}
+	defer f.Close()
+
+	type Balance struct {
+		Exchange string
+		Account  string
+		Balance  float64
+		Time     string
+	}
+	timeStr := time.Now().String()
+	var balance Balance
+	for _, e := range s.config.Exchanges {
+		b, err := s.balance(e)
+		if err != nil {
+			log.Errorf("balance error: %s", err)
+			continue
+		}
+		balance.Exchange = e.Name
+		balance.Account = e.Label
+		balance.Balance, _ = b.Float64()
+		balance.Time = timeStr
+		b2, err2 := json.Marshal(balance)
+		if err2 != nil {
+			Sugar.Error(err2)
+			continue
+		}
+		_, err1 := fmt.Fprintf(f, "%s\n", string(b2))
+		if err1 != nil {
+			Sugar.Error(err1)
+			continue
+		}
+	}
+	return nil
 }

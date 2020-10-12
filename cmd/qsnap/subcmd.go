@@ -6,9 +6,24 @@ import (
 	"github.com/xyths/qtr/snapshot"
 )
 
+var (
+	logCommand = &cli.Command{
+		Action: snapLog,
+		Name:   "log",
+		Usage:  "Log balance to file",
+	}
+)
+
 func snap(ctx *cli.Context) error {
 	config := ctx.String(utils.ConfigFlag.Name)
 	snap := snapshot.New(config)
 	snap.Snapshot(ctx.Context)
+	return nil
+}
+
+func snapLog(ctx *cli.Context) error {
+	config := ctx.String(utils.ConfigFlag.Name)
+	snap := snapshot.New(config)
+	snap.Log()
 	return nil
 }
