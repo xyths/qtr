@@ -5,67 +5,57 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/xyths/hs"
 	"github.com/xyths/hs/broadcast"
+	"github.com/xyths/qtr/executor"
+	"github.com/xyths/qtr/strategy"
 	"go.mongodb.org/mongo-driver/mongo"
-	"time"
+	"go.uber.org/zap"
 )
 
 type SqueezeMomentumConfig struct {
 	Exchange hs.ExchangeConf
 	Mongo    hs.MongoConf
-	Strategy SqueezeMomentumStrategyConf
+	Strategy strategy.SqueezeStrategyConf
+	Log      hs.LogConf
 	Robots   []hs.BroadcastConf
-}
-
-type SqueezeMomentumStrategyConf struct {
-	Total    float64
-	Interval string
-	Factor   float64
-	Period   int
 }
 
 type SqueezeMomentumTrader struct {
 	config   SqueezeMomentumConfig
-	interval time.Duration
+	maxTotal decimal.Decimal
 
+	Sugar  *zap.SugaredLogger
 	db     *mongo.Database
-	//ex     *executor.Executor
+	ex     *executor.Executor
 	robots []broadcast.Broadcaster
 
-	quoteCurrency string // cash, eg. USDT
-	baseSymbol    string
-	maxTotal      decimal.Decimal // max total for buy order, half total in config
-
-	longSymbol           string
-	longCurrency         string
-	longPricePrecision   int32
-	longAmountPrecision  int32
-	longMinAmount        decimal.Decimal
-	longMinTotal         decimal.Decimal
-	shortSymbol          string
-	shortCurrency        string
-	shortPricePrecision  int32
-	shortAmountPrecision int32
-	shortMinAmount       decimal.Decimal
-	shortMinTotal        decimal.Decimal
-
-	orderId    string
-	position   int
-	LongTimes  int
-	ShortTimes int
-
-	//balance   map[string]decimal.Decimal
+	strategy *strategy.SqueezeRest
 }
 
 func NewSqueezeMomentumTrader(ctx context.Context, configFilename string) (*SqueezeMomentumTrader, error) {
-	return nil, nil
+	cfg := SqueezeMomentumConfig{}
+	err := hs.ParseJsonConfig(configFilename, &cfg)
+	if err != nil {
+		return nil, err
+	}
+	t := &SqueezeMomentumTrader{
+		config:   cfg,
+		maxTotal: decimal.NewFromFloat(cfg.Strategy.Total),
+		strategy: strategy.NewSqueezeRest(cfg.Strategy),
+	}
+	t.ex, err = executor.NewExecutor(cfg.Exchange)
+	if err != nil {
+		return nil, err
+	}
+	err = t.init(ctx)
+	return t, nil
 }
 
 func (t *SqueezeMomentumTrader) Start(ctx context.Context, dry bool) {
-
+	t.strategy.StartRest(ctx, dry)
 }
 
 func (t *SqueezeMomentumTrader) Stop(ctx context.Context) {
-
+	t.Sugar.Info("Squeeze Trader stopped")
 }
 
 func (t *SqueezeMomentumTrader) Print(ctx context.Context) {
@@ -77,5 +67,48 @@ func (t *SqueezeMomentumTrader) Clear(ctx context.Context) {
 }
 
 func (t *SqueezeMomentumTrader) Close(ctx context.Context) {
+	if t.db != nil {
+		_ = t.db.Client().Disconnect(ctx)
+	}
+	if t.Sugar != nil {
+		t.Sugar.Info("Squeeze Trader closed with log synced")
+		t.Sugar.Sync()
+	}
+}
+
+func (t *SqueezeMomentumTrader) init(ctx context.Context) error {
+	if err := t.initLogger(); err != nil {
+		return err
+	}
+	db, err := hs.ConnectMongo(ctx, t.config.Mongo)
+	if err != nil {
+		return err
+	}
+	t.db = db
+	t.initRobots()
+	t.ex.Init(t.Sugar, t.db, t.maxTotal)
+	t.strategy.Init(t.Sugar, t.ex.Exchange(), t.ex.Symbol())
+
+	t.Sugar.Info("Squeeze restful Trader initialized")
+	return nil
+}
+func (t *SqueezeMomentumTrader) initLogger() error {
+	l, err := hs.NewZapLogger(t.config.Log)
+	if err != nil {
+		return err
+	}
+	t.Sugar = l.Sugar()
+	t.Sugar.Info("Logger initialized")
+	return nil
+}
+
+func (t *SqueezeMomentumTrader) initRobots() {
+	for _, conf := range t.config.Robots {
+		t.robots = append(t.robots, broadcast.New(conf))
+	}
+	t.Sugar.Info("Broadcasters initialized")
+}
+
+func (t *SqueezeMomentumTrader) doWork(ctx context.Context, dry bool) {
 
 }

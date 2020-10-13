@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/stretchr/testify/require"
-	"github.com/xyths/qtr/utils"
+	"github.com/xyths/qtr/executor"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"sync"
@@ -20,7 +20,7 @@ func TestClientIdManager_LongAdd(t *testing.T) {
 	err = client.Connect(ctx)
 	require.NoError(t, err)
 	collection := client.Database("test").Collection("state")
-	clientIdManager := types.ClientIdManager{}
+	clientIdManager := executor.ClientIdManager{}
 	clientIdManager.Init("+", collection)
 
 	worker := func(id int, wg *sync.WaitGroup) {

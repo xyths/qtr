@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/shopspring/decimal"
 	"github.com/xyths/hs"
-	"github.com/xyths/qtr/trader/rest"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -102,7 +101,7 @@ func (p *OrderProxy) Init(coll *mongo.Collection) {
 	p.coll = coll
 }
 
-func (p *OrderProxy) AddOrder(ctx context.Context, o rest.Order) error {
+func (p *OrderProxy) AddOrder(ctx context.Context, o Order) error {
 	option := options.FindOneAndUpdate().SetUpsert(true)
 	r := p.coll.FindOneAndUpdate(
 		ctx,
@@ -125,7 +124,7 @@ func (p *OrderProxy) AddOrder(ctx context.Context, o rest.Order) error {
 	return nil
 }
 
-func (p *OrderProxy) CreateOrder(ctx context.Context, o rest.Order) error {
+func (p *OrderProxy) CreateOrder(ctx context.Context, o Order) error {
 	option := options.FindOneAndUpdate().SetUpsert(true)
 	r := p.coll.FindOneAndUpdate(
 		ctx,
@@ -151,7 +150,7 @@ func (p *OrderProxy) CreateOrder(ctx context.Context, o rest.Order) error {
 	return nil
 }
 
-func (p *OrderProxy) FillOrder(ctx context.Context, o rest.Order, t rest.Trade) error {
+func (p *OrderProxy) FillOrder(ctx context.Context, o Order, t Trade) error {
 	option := options.FindOneAndUpdate().SetUpsert(true)
 	r := p.coll.FindOneAndUpdate(
 		ctx,
@@ -175,7 +174,7 @@ func (p *OrderProxy) FillOrder(ctx context.Context, o rest.Order, t rest.Trade) 
 	return nil
 }
 
-func (p *OrderProxy) GetOrder(ctx context.Context, o *rest.Order) error {
+func (p *OrderProxy) GetOrder(ctx context.Context, o *Order) error {
 	return p.coll.FindOne(ctx, bson.M{
 		"_id": o.Id,
 	}).Decode(o)

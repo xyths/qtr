@@ -12,7 +12,7 @@ import (
 	"github.com/xyths/hs/exchange"
 	"github.com/xyths/hs/exchange/huobi"
 	"github.com/xyths/hs/logger"
-	"github.com/xyths/qtr/trader/rest"
+	"github.com/xyths/qtr/executor"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
 	"log"
@@ -232,7 +232,7 @@ func (s *SniperTrader) OrderUpdateHandler(response interface{}) {
 		}
 		//s.Sugar.Debugf("Order update, event: %s, symbol: %s, type: %s, id: %d, clientId: %s, status: %s",
 		//	o.EventType, o.Symbol, o.Type, o.OrderId, o.ClientOrderId, o.OrderStatus)
-		o2 := rest.Order{
+		o2 := executor.Order{
 			Id:            uint64(o.OrderId),
 			ClientOrderId: o.ClientOrderId,
 			Type:          o.Type,
@@ -263,7 +263,7 @@ func (s *SniperTrader) OrderUpdateHandler(response interface{}) {
 		case "trade":
 			s.Sugar.Debugf("order filled, orderId: %d, clientOrderId: %s, fill type: %s",
 				o.OrderId, o.ClientOrderId, o.OrderStatus)
-			t := rest.Trade{
+			t := executor.Trade{
 				Id:     uint64(o.TradeId),
 				Price:  o.TradePrice,
 				Amount: o.TradeVolume,
@@ -326,7 +326,7 @@ func (s *SniperTrader) onTick(dry bool) {
 }
 
 func (s *SniperTrader) initLogger() error {
-	l, err := hs.NewZapLogger(s.config.Log.Level, s.config.Log.Outputs, s.config.Log.Errors)
+	l, err := hs.NewZapLogger(s.config.Log)
 	if err != nil {
 		return err
 	}

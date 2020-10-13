@@ -1,6 +1,7 @@
 package strategy
 
 import (
+	"context"
 	indicator "github.com/xyths/go-indicators"
 	"github.com/xyths/hs"
 	"github.com/xyths/hs/exchange"
@@ -11,6 +12,7 @@ import (
 )
 
 type SqueezeStrategyConf struct {
+	Total    float64
 	Interval string
 
 	BBL int     `json:"bbl"` // BB Length
@@ -20,14 +22,7 @@ type SqueezeStrategyConf struct {
 }
 
 type SqueezeStrategy struct {
-	config   SqueezeStrategyConf
-	interval time.Duration
-	symbol   string
-
-	Sugar *zap.SugaredLogger
-	ex    exchange.Exchange
-
-	candle hs.Candle
+	SqueezeBase
 
 	handlerSqueezeOn func(last int)
 	handlerTrendOn   func(up bool, last int)
@@ -40,22 +35,14 @@ type SqueezeExecutor interface {
 
 func NewSqueezeStrategy(config SqueezeStrategyConf) *SqueezeStrategy {
 	s := &SqueezeStrategy{
-		config: config,
-		candle: hs.NewCandle(2000),
+		SqueezeBase: *NewSqueezeBase(config),
 	}
 	return s
 }
 
 func (s *SqueezeStrategy) Init(logger *zap.SugaredLogger, ex exchange.Exchange, symbol string,
 	handlerSqueezeOn func(last int), handlerTrendOn, handlerTrendOff func(up bool, last int)) {
-	interval, err := time.ParseDuration(s.config.Interval)
-	if err != nil {
-		panic(err)
-	}
-	s.interval = interval
-	s.Sugar = logger
-	s.symbol = symbol
-	s.ex = ex
+	s.SqueezeBase.Init(logger, ex, symbol)
 	s.handlerSqueezeOn = handlerSqueezeOn
 	s.handlerTrendOn = handlerTrendOn
 	s.handlerTrendOff = handlerTrendOff
@@ -163,4 +150,66 @@ func (s *SqueezeStrategy) onTick(candle hs.Candle, finished bool) {
 			s.handlerTrendOff(isUptrend, current-stopIndex+1)
 		}
 	}
+}
+
+type SqueezeBase struct {
+	config   SqueezeStrategyConf
+	interval time.Duration
+	symbol   string
+
+	Sugar *zap.SugaredLogger
+	ex    exchange.Exchange
+
+	candle hs.Candle
+}
+
+func NewSqueezeBase(config SqueezeStrategyConf) *SqueezeBase {
+	s := &SqueezeBase{
+		config: config,
+		candle: hs.NewCandle(2000),
+	}
+	return s
+}
+
+func (s *SqueezeBase) Init(logger *zap.SugaredLogger, ex exchange.Exchange, symbol string) {
+	interval, err := time.ParseDuration(s.config.Interval)
+	if err != nil {
+		panic(err)
+	}
+	s.interval = interval
+	s.Sugar = logger
+	s.symbol = symbol
+	s.ex = ex
+}
+
+type SqueezeRest struct {
+	SqueezeBase
+}
+
+func NewSqueezeRest(config SqueezeStrategyConf) *SqueezeRest {
+	s := &SqueezeRest{
+		SqueezeBase: *NewSqueezeBase(config),
+	}
+	return s
+}
+
+func (s *SqueezeRest) Init(logger *zap.SugaredLogger, ex exchange.Exchange, symbol string) {
+	s.SqueezeBase.Init(logger, ex, symbol)
+}
+
+func (s *SqueezeRest) StartRest(ctx context.Context, dry bool) {
+	s.doWork(ctx, dry)
+	for {
+		select {
+		case <-ctx.Done():
+			s.Sugar.Info("context cancelled")
+			return
+		case <-time.After(s.interval):
+			s.doWork(ctx, dry)
+		}
+	}
+}
+
+func (s *SqueezeRest) doWork(ctx context.Context, dry bool) {
+	s.Sugar.Debug("doWork")
 }

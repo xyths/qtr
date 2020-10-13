@@ -7,7 +7,6 @@ import (
 	"github.com/xyths/hs"
 	"github.com/xyths/hs/exchange"
 	"github.com/xyths/hs/exchange/huobi"
-	"github.com/xyths/qtr/trader/rest"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
 	"strings"
@@ -166,7 +165,7 @@ func (e *Executor) OrderUpdateHandler(response interface{}) {
 			e.Sugar.Debugf("no clientOrderId, not my order %d", o.OrderId)
 			return
 		}
-		o2 := rest.Order{
+		o2 := Order{
 			Id:            uint64(o.OrderId),
 			ClientOrderId: o.ClientOrderId,
 			Type:          o.Type,
@@ -203,7 +202,7 @@ func (e *Executor) OrderUpdateHandler(response interface{}) {
 			if !strings.HasPrefix(o.ClientOrderId, prefixSellLimitOrder) && !strings.HasPrefix(o.ClientOrderId, prefixSellMarketOrder) {
 				return
 			}
-			td := rest.Trade{
+			td := Trade{
 				Id:     uint64(o.TradeId),
 				Price:  o.TradePrice,
 				Amount: o.TradeVolume,

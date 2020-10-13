@@ -1,4 +1,4 @@
-package rest
+package executor
 
 import "time"
 

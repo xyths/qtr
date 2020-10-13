@@ -8,7 +8,6 @@ import (
 	"github.com/xyths/hs/broadcast"
 	"github.com/xyths/qtr/executor"
 	"github.com/xyths/qtr/strategy"
-	"github.com/xyths/qtr/trader/rest"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
 	"strings"
@@ -24,8 +23,8 @@ type RtmTraderConfig struct {
 }
 
 var (
-	emptyBuyOrder  = rest.BuyOrder{Name: "buyOrder"}
-	emptySellOrder = rest.SellOrder{Name: "sellOrder"}
+	emptyBuyOrder  = executor.BuyOrder{Name: "buyOrder"}
+	emptySellOrder = executor.SellOrder{Name: "sellOrder"}
 )
 
 type RtmTrader struct {
@@ -70,7 +69,7 @@ func (t *RtmTrader) Init(ctx context.Context) error {
 		return err
 	}
 	t.db = db
-	t.initRobots(ctx)
+	t.initRobots()
 	t.ex.Init(t.Sugar, t.db, t.maxTotal)
 	t.strategy.Init(t.Sugar, t.ex)
 
@@ -140,7 +139,7 @@ func (t *RtmTrader) Stop() {
 }
 
 func (t *RtmTrader) initLogger() error {
-	l, err := hs.NewZapLogger(t.config.Log.Level, t.config.Log.Outputs, t.config.Log.Errors)
+	l, err := hs.NewZapLogger(t.config.Log)
 	if err != nil {
 		return err
 	}
@@ -170,7 +169,7 @@ func (t *RtmTrader) initLogger() error {
 //	return nil
 //}
 
-func (t *RtmTrader) initRobots(ctx context.Context) {
+func (t *RtmTrader) initRobots() {
 	for _, conf := range t.config.Robots {
 		t.robots = append(t.robots, broadcast.New(conf))
 	}
