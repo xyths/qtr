@@ -21,34 +21,95 @@ type SqueezeStrategyConf struct {
 	KCF float64 `json:"kcf"` // KC MultiFactor
 }
 
-type SqueezeStrategy struct {
-	SqueezeBase
+type SqueezeBase struct {
+	config   SqueezeStrategyConf
+	interval time.Duration
+	symbol   string
+	dry      bool
 
-	handlerSqueezeOn func(last int)
-	handlerTrendOn   func(up bool, last int)
-	handlerTrendOff  func(up bool, last int)
+	Sugar *zap.SugaredLogger
+	ex    exchange.Exchange
+
+	candle hs.Candle
+
+	handlerSqueezeOn func(last int, dry bool)
+	handlerTrendOn   func(up bool, last int, dry bool)
+	handlerTrendOff  func(up bool, last int, dry bool)
 }
 
-type SqueezeExecutor interface {
-	SubscribeCandle(clientId string, period time.Duration, responseHandler func(interface{}))
-}
-
-func NewSqueezeStrategy(config SqueezeStrategyConf) *SqueezeStrategy {
-	s := &SqueezeStrategy{
-		SqueezeBase: *NewSqueezeBase(config),
+func NewSqueezeBase(config SqueezeStrategyConf, dry bool) *SqueezeBase {
+	s := &SqueezeBase{
+		config: config,
+		dry:    dry,
+		candle: hs.NewCandle(2000),
 	}
 	return s
 }
 
-func (s *SqueezeStrategy) Init(logger *zap.SugaredLogger, ex exchange.Exchange, symbol string,
-	handlerSqueezeOn func(last int), handlerTrendOn, handlerTrendOff func(up bool, last int)) {
-	s.SqueezeBase.Init(logger, ex, symbol)
+func (s *SqueezeBase) Init(logger *zap.SugaredLogger, ex exchange.Exchange, symbol string,
+	handlerSqueezeOn func(last int, dry bool), handlerTrendOn, handlerTrendOff func(up bool, last int, dry bool)) {
+	interval, err := time.ParseDuration(s.config.Interval)
+	if err != nil {
+		panic(err)
+	}
+	s.interval = interval
+	s.Sugar = logger
+	s.symbol = symbol
+	s.ex = ex
 	s.handlerSqueezeOn = handlerSqueezeOn
 	s.handlerTrendOn = handlerTrendOn
 	s.handlerTrendOff = handlerTrendOff
 }
 
-func (s *SqueezeStrategy) Start() error {
+// use candle not s.candle, for concurrency
+func (s *SqueezeBase) onTick(candle hs.Candle, finished bool) {
+	//s.Sugar.Debugf("onSqueezeTick")
+	if !finished {
+		return
+	}
+	r, d := indicator.Squeeze(
+		s.config.BBL, s.config.KCL, s.config.BBF, s.config.KCF,
+		candle.High, candle.Low, candle.Close,
+	)
+	l := candle.Length()
+	current := l - 2
+	if l < 3 {
+		return
+	}
+	for i := current - 10; i >= 0 && i <= current; i++ {
+		s.Sugar.Debugf(
+			"[%d] %s %f %f %f %f, %.2f %t %t %t, kc(%.2f %.2f %.2f), bb(%.2f %.2f %.2f)",
+			i, types.TimestampToDate(candle.Timestamp[i]),
+			candle.Open[i], candle.High[i], candle.Low[i], candle.Close[i],
+			d.Value[i], d.SqueezeOn[i], d.SqueezeOff[i], d.NoSqueeze[i],
+			d.KCUpper[i], d.KCMiddle[i], d.KCLower[i], d.BBUpper[i], d.BBMiddle[i], d.BBLower[i],
+		)
+	}
+	s.Sugar.Infof("trend %d, last %d", r.Trend, r.Last)
+	switch r.Trend {
+	case 0:
+		s.handlerTrendOff(true, r.Last, s.dry)
+	case 1:
+		s.handlerSqueezeOn(r.Last, s.dry)
+	case 2:
+		s.handlerTrendOn(true, r.Last, s.dry)
+	case -2:
+		s.handlerTrendOn(false, r.Last, s.dry)
+	}
+}
+
+type SqueezeWs struct {
+	SqueezeBase
+}
+
+func NewSqueezeWs(config SqueezeStrategyConf, dry bool) *SqueezeWs {
+	s := &SqueezeWs{
+		SqueezeBase: *NewSqueezeBase(config, dry),
+	}
+	return s
+}
+
+func (s *SqueezeWs) Start() error {
 	{
 		to := time.Now()
 		from := to.Add(-2000 * s.interval)
@@ -63,11 +124,11 @@ func (s *SqueezeStrategy) Start() error {
 	return nil
 }
 
-func (s *SqueezeStrategy) Stop() {
+func (s *SqueezeWs) Stop() {
 	s.ex.UnsubscribeCandlestick(s.symbol, "squeeze-tick", s.interval)
 }
 
-func (s *SqueezeStrategy) tickerHandler(resp interface{}) {
+func (s *SqueezeWs) tickerHandler(resp interface{}) {
 	ticker, candle, err := huobi.CandlestickHandler(resp)
 	if err != nil {
 		s.Sugar.Info(err)
@@ -93,123 +154,30 @@ func (s *SqueezeStrategy) tickerHandler(resp interface{}) {
 	}
 }
 
-// use candle not s.candle, for concurrency
-func (s *SqueezeStrategy) onTick(candle hs.Candle, finished bool) {
-	//s.Sugar.Debugf("onSqueezeTick")
-	if !finished {
-		return
-	}
-	val, squeezeOn, squeezeOff, noSqueeze := indicator.SqueezeMomentum(
-		s.config.BBL, s.config.KCL, s.config.BBF, s.config.KCF,
-		candle.High, candle.Low, candle.Close,
-	)
-	l := candle.Length()
-	current := l - 2
-	if l < 3 {
-		return
-	}
-	for i := current - 10; i >= 0 && i <= current; i++ {
-		s.Sugar.Debugf(
-			"[%d] %s %f %f %f %f, %.2f %t %t %t",
-			i, types.TimestampToDate(candle.Timestamp[i]),
-			candle.Open[i], candle.High[i], candle.Low[i], candle.Close[i],
-			val[i], squeezeOn[i], squeezeOff[i], noSqueeze[i],
-		)
-	}
-	if noSqueeze[current] {
-		s.Sugar.Info("no squeeze")
-		return
-	}
-
-	if squeezeOn[current] {
-		// count the dark cross
-		last := 0
-		for i := current; squeezeOn[i] && i >= 0; i-- {
-			last++
-		}
-		s.handlerSqueezeOn(last)
-	} else {
-		// find first gray cross
-		firstGrayIndex := 0
-		for i := current; !squeezeOn[i] && i >= 0; i-- {
-			firstGrayIndex = i
-		}
-		isUptrend := val[firstGrayIndex] > 0
-		trendStopped := false
-		stopIndex := 0
-		for i := firstGrayIndex; i <= current; i++ {
-			if isUptrend && val[i] <= val[i-1] || !isUptrend && val[i] >= val[i-1] {
-				trendStopped = true
-				stopIndex = i
-				break
-			}
-		}
-		if !trendStopped {
-			s.handlerTrendOn(isUptrend, current-firstGrayIndex+1)
-		} else {
-			s.handlerTrendOff(isUptrend, current-stopIndex+1)
-		}
-	}
-}
-
-type SqueezeBase struct {
-	config   SqueezeStrategyConf
-	interval time.Duration
-	symbol   string
-
-	Sugar *zap.SugaredLogger
-	ex    exchange.Exchange
-
-	candle hs.Candle
-}
-
-func NewSqueezeBase(config SqueezeStrategyConf) *SqueezeBase {
-	s := &SqueezeBase{
-		config: config,
-		candle: hs.NewCandle(2000),
-	}
-	return s
-}
-
-func (s *SqueezeBase) Init(logger *zap.SugaredLogger, ex exchange.Exchange, symbol string) {
-	interval, err := time.ParseDuration(s.config.Interval)
-	if err != nil {
-		panic(err)
-	}
-	s.interval = interval
-	s.Sugar = logger
-	s.symbol = symbol
-	s.ex = ex
-}
-
 type SqueezeRest struct {
 	SqueezeBase
 }
 
-func NewSqueezeRest(config SqueezeStrategyConf) *SqueezeRest {
+func NewSqueezeRest(config SqueezeStrategyConf, dry bool) *SqueezeRest {
 	s := &SqueezeRest{
-		SqueezeBase: *NewSqueezeBase(config),
+		SqueezeBase: *NewSqueezeBase(config, dry),
 	}
 	return s
 }
 
-func (s *SqueezeRest) Init(logger *zap.SugaredLogger, ex exchange.Exchange, symbol string) {
-	s.SqueezeBase.Init(logger, ex, symbol)
+func (s *SqueezeRest) Run(ctx context.Context) {
+	s.doWork(ctx)
 }
 
-func (s *SqueezeRest) StartRest(ctx context.Context, dry bool) {
-	s.doWork(ctx, dry)
-	for {
-		select {
-		case <-ctx.Done():
-			s.Sugar.Info("context cancelled")
-			return
-		case <-time.After(s.interval):
-			s.doWork(ctx, dry)
-		}
-	}
-}
-
-func (s *SqueezeRest) doWork(ctx context.Context, dry bool) {
+func (s *SqueezeRest) doWork(ctx context.Context) {
 	s.Sugar.Debug("doWork")
+	to := time.Now()
+	from := to.Add(-2000 * s.interval)
+	candle, err := s.ex.CandleFrom(s.symbol, "squeeze-candle", s.interval, from, to)
+	if err != nil {
+		s.Sugar.Error(err)
+		return
+	}
+
+	s.onTick(candle, true)
 }

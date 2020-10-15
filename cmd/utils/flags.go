@@ -31,7 +31,7 @@ var (
 	ProtocolFlag = &cli.StringFlag{
 		Name:    "protocol",
 		Aliases: []string{"p"},
-		Value:   "ws",
+		Value:   "r",
 		Usage:   "protocol, rest/r, or ws/w",
 	}
 	InputCsvFlag = &cli.StringFlag{

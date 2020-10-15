@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/urfave/cli/v2"
 	"github.com/xyths/qtr/cmd/utils"
-	"github.com/xyths/qtr/trader"
 	"github.com/xyths/qtr/trader/rest"
 	"os"
 	"os/signal"
@@ -20,7 +19,7 @@ func init() {
 		Name:    filepath.Base(os.Args[0]),
 		Action:  squeeze,
 		Usage:   "the Squeeze strategy trading robot",
-		Version: "0.1.0",
+		Version: "0.2.5",
 	}
 
 	app.Commands = []*cli.Command{
@@ -63,26 +62,22 @@ func squeeze(ctx *cli.Context) error {
 	configFile := ctx.String(utils.ConfigFlag.Name)
 	dry := ctx.Bool(utils.DryRunFlag.Name)
 	protocol := ctx.String(utils.ProtocolFlag.Name)
-	var t trader.Trader
 	switch protocol {
 	case "r", "rest":
-		t1, err := rest.NewSqueezeMomentumTrader(ctx.Context, configFile)
-		if err != nil {
-			return err
-		}
-		t = t1
+		squeezeRest(ctx, configFile, dry)
 	case "w", "ws":
 		//
-		//t, err := ws.NewRtmTrader(ctx.Context, configFile)
-		//if err != nil {
-		//	return err
-		//}
+	}
+	return nil
+}
+
+func squeezeRest(ctx *cli.Context, cfg string, dry bool) {
+	t, err := rest.NewSqueezeMomentumTrader(ctx.Context, cfg, dry)
+	if err != nil {
+		return
 	}
 	defer t.Close(ctx.Context)
-	t.Start(ctx.Context, dry)
-	<-ctx.Done()
-	t.Stop(ctx.Context)
-	return nil
+	t.Run(ctx.Context)
 }
 
 func squeezePrint(ctx *cli.Context) error {

@@ -22,6 +22,7 @@ type RtmExecutor interface {
 
 	BuyAllLimit(price float64) error
 	SellAllLimit(price float64) error
+	BuyAllMarket() error
 	SellAllMarket() error
 	CancelAll() error
 	CancelAllBuy() error
@@ -44,7 +45,7 @@ type RTMStrategy struct {
 
 	Sugar    *zap.SugaredLogger
 	executor RtmExecutor
-	squeeze  *SqueezeStrategy
+	squeeze  *SqueezeWs
 
 	enabledLock sync.RWMutex
 	enabled     bool
@@ -59,10 +60,10 @@ type RTMStrategy struct {
 	sellPrice float64
 }
 
-func NewRTMStrategy(config RtmStrategyConf) *RTMStrategy {
+func NewRTMStrategy(config RtmStrategyConf, dry bool) *RTMStrategy {
 	return &RTMStrategy{
 		config:  config,
-		squeeze: NewSqueezeStrategy(config.Squeeze),
+		squeeze: NewSqueezeWs(config.Squeeze, dry),
 		candle:  hs.NewCandle(2000),
 	}
 }
@@ -106,14 +107,14 @@ func (s *RTMStrategy) Stop() {
 }
 
 // when squeeze is fire off, stop new orders, waiting for sell out
-func (s *RTMStrategy) SqueezeOn(last int) {
+func (s *RTMStrategy) SqueezeOn(last int, dry bool) {
 	if s.IsEnabled() {
 		s.Disable()
 	}
 }
 
 // trend is on, cancel opening orders and sell all coins
-func (s *RTMStrategy) TrendOn(up bool, last int) {
+func (s *RTMStrategy) TrendOn(up bool, last int, dry bool) {
 	if s.IsEnabled() {
 		s.Disable()
 	}
@@ -125,7 +126,7 @@ func (s *RTMStrategy) TrendOn(up bool, last int) {
 }
 
 // start to RTM trading
-func (s *RTMStrategy) TrendOff(up bool, last int) {
+func (s *RTMStrategy) TrendOff(up bool, last int, dry bool) {
 	if !s.IsEnabled() {
 		s.Enable()
 	}
