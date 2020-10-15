@@ -37,7 +37,7 @@ type RestExecutor struct {
 //}
 
 func (e *RestExecutor) Init(
-	ex exchange.Exchange, sugar *zap.SugaredLogger, db *mongo.Database,
+	ex exchange.RestAPIExchange, sugar *zap.SugaredLogger, db *mongo.Database,
 	symbol exchange.Symbol, fee exchange.Fee, maxTotal decimal.Decimal) {
 	e.BaseExecutor.Init(ex, sugar, db, symbol, fee, maxTotal)
 }

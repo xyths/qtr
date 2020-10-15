@@ -28,7 +28,7 @@ type SqueezeBase struct {
 	dry      bool
 
 	Sugar *zap.SugaredLogger
-	ex    exchange.Exchange
+	ex    exchange.RestAPIExchange
 
 	candle hs.Candle
 
@@ -46,7 +46,7 @@ func NewSqueezeBase(config SqueezeStrategyConf, dry bool) *SqueezeBase {
 	return s
 }
 
-func (s *SqueezeBase) Init(logger *zap.SugaredLogger, ex exchange.Exchange, symbol string,
+func (s *SqueezeBase) Init(logger *zap.SugaredLogger, ex exchange.RestAPIExchange, symbol string,
 	handlerSqueezeOn func(last int, dry bool), handlerTrendOn, handlerTrendOff func(up bool, last int, dry bool)) {
 	interval, err := time.ParseDuration(s.config.Interval)
 	if err != nil {
@@ -100,6 +100,7 @@ func (s *SqueezeBase) onTick(candle hs.Candle, finished bool) {
 
 type SqueezeWs struct {
 	SqueezeBase
+	wsEx exchange.Exchange
 }
 
 func NewSqueezeWs(config SqueezeStrategyConf, dry bool) *SqueezeWs {
@@ -107,6 +108,12 @@ func NewSqueezeWs(config SqueezeStrategyConf, dry bool) *SqueezeWs {
 		SqueezeBase: *NewSqueezeBase(config, dry),
 	}
 	return s
+}
+
+func (s *SqueezeWs) Init(logger *zap.SugaredLogger, ex exchange.Exchange, symbol string,
+	handlerSqueezeOn func(last int, dry bool), handlerTrendOn, handlerTrendOff func(up bool, last int, dry bool)) {
+	s.SqueezeBase.Init(logger, ex, symbol, handlerSqueezeOn, handlerTrendOn, handlerTrendOff)
+	s.wsEx = ex
 }
 
 func (s *SqueezeWs) Start() error {
@@ -120,12 +127,12 @@ func (s *SqueezeWs) Start() error {
 		s.candle.Add(candle)
 		s.onTick(s.candle, true)
 	}
-	s.ex.SubscribeCandlestick(s.symbol, "squeeze-tick", s.interval, s.tickerHandler)
+	s.wsEx.SubscribeCandlestick(s.symbol, "squeeze-tick", s.interval, s.tickerHandler)
 	return nil
 }
 
 func (s *SqueezeWs) Stop() {
-	s.ex.UnsubscribeCandlestick(s.symbol, "squeeze-tick", s.interval)
+	s.wsEx.UnsubscribeCandlestick(s.symbol, "squeeze-tick", s.interval)
 }
 
 func (s *SqueezeWs) tickerHandler(resp interface{}) {
@@ -165,15 +172,18 @@ func NewSqueezeRest(config SqueezeStrategyConf, dry bool) *SqueezeRest {
 	return s
 }
 
+func (s *SqueezeRest) Init(logger *zap.SugaredLogger, ex exchange.RestAPIExchange, symbol string,
+	handlerSqueezeOn func(last int, dry bool), handlerTrendOn, handlerTrendOff func(up bool, last int, dry bool)) {
+	s.SqueezeBase.Init(logger, ex, symbol, handlerSqueezeOn, handlerTrendOn, handlerTrendOff)
+}
+
 func (s *SqueezeRest) Run(ctx context.Context) {
 	s.doWork(ctx)
 }
 
 func (s *SqueezeRest) doWork(ctx context.Context) {
 	s.Sugar.Debug("doWork")
-	to := time.Now()
-	from := to.Add(-2000 * s.interval)
-	candle, err := s.ex.CandleFrom(s.symbol, "squeeze-candle", s.interval, from, to)
+	candle, err := s.ex.CandleBySize(s.symbol, s.interval, 2000)
 	if err != nil {
 		s.Sugar.Error(err)
 		return

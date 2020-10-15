@@ -5,6 +5,9 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/xyths/hs"
 	"github.com/xyths/hs/broadcast"
+	"github.com/xyths/hs/exchange"
+	"github.com/xyths/hs/exchange/gateio"
+	"github.com/xyths/hs/exchange/huobi"
 	"github.com/xyths/qtr/executor"
 	"github.com/xyths/qtr/strategy"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -25,7 +28,7 @@ type SqueezeMomentumTrader struct {
 
 	Sugar  *zap.SugaredLogger
 	db     *mongo.Database
-	ex     *executor.Executor
+	ex     *executor.RestExecutor
 	robots []broadcast.Broadcaster
 
 	strategy *strategy.SqueezeRest
@@ -44,10 +47,7 @@ func NewSqueezeMomentumTrader(ctx context.Context, configFilename string, dry bo
 		maxTotal: decimal.NewFromFloat(cfg.Strategy.Total),
 		strategy: strategy.NewSqueezeRest(cfg.Strategy, dry),
 	}
-	t.ex, err = executor.NewExecutor(cfg.Exchange)
-	if err != nil {
-		return nil, err
-	}
+
 	err = t.init(ctx)
 	return t, nil
 }
@@ -76,7 +76,7 @@ func (t *SqueezeMomentumTrader) Close(ctx context.Context) {
 	}
 	if t.Sugar != nil {
 		t.Sugar.Info("Squeeze Trader closed with log synced")
-		t.Sugar.Sync()
+		_ = t.Sugar.Sync()
 	}
 }
 
@@ -90,12 +90,15 @@ func (t *SqueezeMomentumTrader) init(ctx context.Context) error {
 	}
 	t.db = db
 	t.initRobots()
-	t.ex.Init(t.Sugar, t.db, t.maxTotal)
+	if err := t.initExecutor(); err != nil {
+		return err
+	}
 	t.strategy.Init(t.Sugar, t.ex.Exchange(), t.ex.Symbol(), t.squeezeOn, t.trendOn, t.trendOff)
 
 	t.Sugar.Info("Squeeze restful Trader initialized")
 	return nil
 }
+
 func (t *SqueezeMomentumTrader) initLogger() error {
 	l, err := hs.NewZapLogger(t.config.Log)
 	if err != nil {
@@ -111,6 +114,31 @@ func (t *SqueezeMomentumTrader) initRobots() {
 		t.robots = append(t.robots, broadcast.New(conf))
 	}
 	t.Sugar.Info("Broadcasters initialized")
+}
+
+func (t *SqueezeMomentumTrader) initExecutor() (err error) {
+	cfg := t.config.Exchange
+	var ex exchange.RestAPIExchange
+	switch cfg.Name {
+	case "huobi":
+		ex, err = huobi.New(cfg.Label, cfg.Key, cfg.Secret, cfg.Host)
+		if err != nil {
+			return
+		}
+	case "gate":
+		ex = gateio.New(cfg.Key, cfg.Secret, cfg.Host)
+	}
+	symbol, err := ex.GetSymbol(cfg.Symbols[0])
+	if err != nil {
+		return
+	}
+	fee, err := ex.GetFee(symbol.Symbol)
+	if err != nil {
+		return
+	}
+	t.ex = &executor.RestExecutor{}
+	t.ex.Init(ex, t.Sugar, t.db, symbol, fee, t.maxTotal)
+	return nil
 }
 
 func (t *SqueezeMomentumTrader) Load(ctx context.Context) {

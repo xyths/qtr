@@ -12,7 +12,7 @@ type BaseExecutor struct {
 	maxTotal decimal.Decimal
 	Sugar    *zap.SugaredLogger
 	db       *mongo.Database
-	ex       exchange.Exchange
+	ex       exchange.RestAPIExchange
 	symbol   exchange.Symbol
 	fee      exchange.Fee
 	id       ClientIdManager
@@ -22,7 +22,7 @@ type BaseExecutor struct {
 }
 
 func (e *BaseExecutor) Init(
-	ex exchange.Exchange, sugar *zap.SugaredLogger, db *mongo.Database,
+	ex exchange.RestAPIExchange, sugar *zap.SugaredLogger, db *mongo.Database,
 	symbol exchange.Symbol, fee exchange.Fee, maxTotal decimal.Decimal) {
 	e.ex = ex
 	e.Sugar = sugar
@@ -35,7 +35,7 @@ func (e *BaseExecutor) Init(
 	e.quota.Init(db.Collection(collNameState), e.maxTotal)
 }
 
-func (e *BaseExecutor) Exchange() exchange.Exchange {
+func (e *BaseExecutor) Exchange() exchange.RestAPIExchange {
 	return e.ex
 }
 func (e *BaseExecutor) Symbol() string {
