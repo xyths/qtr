@@ -186,7 +186,7 @@ func (e *BaseExecutor) buyAllMarket() (orderId uint64, err error) {
 		//e.Sugar.Errorf("buy error: %s", err)
 		return
 	}
-	e.Sugar.Infof("place buy-market order, id %s / %s, total %s", orderId, clientId, total)
+	e.Sugar.Infof("place buy-market order, id %d / %s, total %s", orderId, clientId, total)
 	if err1 := e.id.LongAdd(context.Background()); err1 != nil {
 		e.Sugar.Errorf("update buy times error: %s", err1)
 		// this error can ignore
@@ -202,6 +202,7 @@ func (e *RestExecutor) sellAllMarket() (orderId uint64, err error) {
 		return
 	}
 	amount := balance[e.BaseCurrency()]
+	amount = amount.Round(e.AmountPrecision())
 	if amount.LessThan(e.MinAmount()) {
 		e.Sugar.Infof("amount ( %s / %s ) is too small", amount, e.MinAmount())
 		return
