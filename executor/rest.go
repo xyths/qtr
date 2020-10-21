@@ -4,9 +4,6 @@ import (
 	"context"
 	"github.com/shopspring/decimal"
 	"github.com/xyths/hs"
-	"github.com/xyths/hs/exchange"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.uber.org/zap"
 )
 
 type RestExecutor struct {
@@ -36,11 +33,12 @@ type RestExecutor struct {
 //	return &e, nil
 //}
 
-func (e *RestExecutor) Init(
-	ex exchange.RestAPIExchange, sugar *zap.SugaredLogger, db *mongo.Database,
-	symbol exchange.Symbol, fee exchange.Fee, maxTotal decimal.Decimal) {
-	e.BaseExecutor.Init(ex, sugar, db, symbol, fee, maxTotal)
-}
+//func (e *RestExecutor) Init(
+//	ex exchange.RestAPIExchange, sugar *zap.SugaredLogger, db *mongo.Database,
+//	symbol exchange.Symbol, fee exchange.Fee, maxTotal decimal.Decimal,
+//	robots []broadcast.Broadcaster) {
+//	e.BaseExecutor.Init(ex, sugar, db, symbol, fee, maxTotal, robots)
+//}
 
 func (e *RestExecutor) Load(ctx context.Context) error {
 	if err := e.BaseExecutor.Load(ctx); err != nil {

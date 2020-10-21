@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"github.com/shopspring/decimal"
+	"github.com/xyths/hs/broadcast"
 	"github.com/xyths/hs/exchange"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
@@ -12,6 +13,7 @@ type BaseExecutor struct {
 	maxTotal decimal.Decimal
 	Sugar    *zap.SugaredLogger
 	db       *mongo.Database
+	robots   []broadcast.Broadcaster
 	ex       exchange.RestAPIExchange
 	symbol   exchange.Symbol
 	fee      exchange.Fee
@@ -23,13 +25,15 @@ type BaseExecutor struct {
 
 func (e *BaseExecutor) Init(
 	ex exchange.RestAPIExchange, sugar *zap.SugaredLogger, db *mongo.Database,
-	symbol exchange.Symbol, fee exchange.Fee, maxTotal decimal.Decimal) {
+	symbol exchange.Symbol, fee exchange.Fee, maxTotal decimal.Decimal,
+	robots []broadcast.Broadcaster) {
 	e.ex = ex
 	e.Sugar = sugar
 	e.db = db
 	e.symbol = symbol
 	e.fee = fee
 	e.maxTotal = maxTotal
+	e.robots = robots
 	e.id.Init("-", db.Collection(collNameState))
 	e.OrderProxy.Init(db.Collection(collNameOrder))
 	e.quota.Init(db.Collection(collNameState), e.maxTotal)

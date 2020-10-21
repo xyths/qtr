@@ -410,7 +410,7 @@ func sniperClear(ctx *cli.Context) error {
 func rtm(ctx *cli.Context) error {
 	configFile := ctx.String(utils.ConfigFlag.Name)
 	dry := ctx.Bool(utils.DryRunFlag.Name)
-	t, err := ws.NewRtmTrader(ctx.Context, configFile)
+	t, err := ws.NewRtmTrader(ctx.Context, configFile, dry)
 	if err != nil {
 		return err
 	}

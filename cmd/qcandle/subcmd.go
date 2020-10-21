@@ -3,7 +3,6 @@ package main
 import (
 	"github.com/urfave/cli/v2"
 	"github.com/xyths/qtr/cmd/utils"
-	"github.com/xyths/qtr/gateio"
 	"log"
 )
 
@@ -47,14 +46,15 @@ func gateCandlestick(ctx *cli.Context) error {
 	host := ctx.String(HostFlag.Name)
 	log.Printf("symbol: %s, type: %s,  start: %s, end: %s, host: %s", symbol, cType, startTime, endTime, host)
 
-	g := gateio.New("", "", host)
-	candles, err := g.Candles(symbol, groupSec, rangeHour)
-	if err != nil {
-		log.Printf("get candle error: %s", err)
-	}
-	for _, c := range candles {
-		log.Printf("%d,%s,%s,%s,%s,%s", c.Timestamp, c.Open, c.High, c.Low, c.Close, c.Volume)
-	}
+	// use hs.gateio.CandleFrom
+	//g := gateio.New("", "", host)
+	//candles, err := g.Candles(symbol, groupSec, rangeHour)
+	//if err != nil {
+	//	log.Printf("get candle error: %s", err)
+	//}
+	//for _, c := range candles {
+	//	log.Printf("%d,%s,%s,%s,%s,%s", c.Timestamp, c.Open, c.High, c.Low, c.Close, c.Volume)
+	//}
 	return nil
 }
 

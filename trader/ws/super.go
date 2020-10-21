@@ -186,9 +186,7 @@ func (s *SuperTrendTrader) Start(ctx context.Context, dry bool) {
 	s.ex.SubscribeOrder(s.Symbol(), "super-order", s.OrderUpdateHandler)
 
 	{
-		to := time.Now()
-		from := to.Add(-2000 * s.interval)
-		candle, err := s.ex.CandleFrom(s.Symbol(), "super-candle", s.interval, from, to)
+		candle, err := s.ex.CandleBySize(s.Symbol(), s.interval, 2000)
 		if err != nil {
 			s.Sugar.Fatalf("get candle error: %s", err)
 		}

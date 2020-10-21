@@ -40,7 +40,7 @@ type RtmTrader struct {
 	strategy *strategy.RTMStrategy
 }
 
-func NewRtmTrader(ctx context.Context, configFilename string,dry bool) (*RtmTrader, error) {
+func NewRtmTrader(ctx context.Context, configFilename string, dry bool) (*RtmTrader, error) {
 	cfg := RtmTraderConfig{}
 	err := hs.ParseJsonConfig(configFilename, &cfg)
 	if err != nil {
@@ -49,7 +49,7 @@ func NewRtmTrader(ctx context.Context, configFilename string,dry bool) (*RtmTrad
 	s := &RtmTrader{
 		config:   cfg,
 		maxTotal: decimal.NewFromFloat(cfg.Strategy.Total),
-		strategy: strategy.NewRTMStrategy(cfg.Strategy,dry),
+		strategy: strategy.NewRTMStrategy(cfg.Strategy, dry),
 	}
 
 	s.ex, err = executor.NewExecutor(cfg.Exchange)

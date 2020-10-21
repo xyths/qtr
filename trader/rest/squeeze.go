@@ -137,7 +137,7 @@ func (t *SqueezeMomentumTrader) initExecutor() (err error) {
 		return
 	}
 	t.ex = &executor.RestExecutor{}
-	t.ex.Init(ex, t.Sugar, t.db, symbol, fee, t.maxTotal)
+	t.ex.Init(ex, t.Sugar, t.db, symbol, fee, t.maxTotal, t.robots)
 	return nil
 }
 

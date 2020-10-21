@@ -118,9 +118,7 @@ func (s *SqueezeWs) Init(logger *zap.SugaredLogger, ex exchange.Exchange, symbol
 
 func (s *SqueezeWs) Start() error {
 	{
-		to := time.Now()
-		from := to.Add(-2000 * s.interval)
-		candle, err := s.ex.CandleFrom(s.symbol, "squeeze-candle", s.interval, from, to)
+		candle, err := s.ex.CandleBySize(s.symbol, s.interval, 2000)
 		if err != nil {
 			return err
 		}
