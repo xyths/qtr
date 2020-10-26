@@ -191,6 +191,7 @@ func (s *SuperTrendTrader) Start(ctx context.Context, dry bool) {
 			s.Sugar.Fatalf("get candle error: %s", err)
 		}
 		s.candle.Add(candle)
+		s.onTick(s.dry)
 	}
 	s.ex.SubscribeCandlestick(s.Symbol(), "super-tick", s.interval, s.tickerHandler)
 }
@@ -800,7 +801,7 @@ func (s *SuperTrendTrader) onTick(dry bool) {
 	price := decimal.NewFromFloat(math.Min(s.candle.Close[l-1], s.candle.Close[l-2]))
 	stop := decimal.NewFromFloat(tsl[l-2]).Round(s.PricePrecision())
 
-	if trend[l-2] && !trend[l-3] {
+	if trend[l-2] && (!trend[l-3] || s.position != 1) {
 		// false -> true, buy/long
 		s.Sugar.Info("[Signal] BUY")
 		s.trend = 1

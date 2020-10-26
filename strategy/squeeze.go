@@ -19,6 +19,9 @@ type SqueezeStrategyConf struct {
 	BBF float64 `json:"bbf"` // BB MultiFactor
 	KCL int     `json:"kcl"` // KC Length
 	KCF float64 `json:"kcf"` // KC MultiFactor
+
+	CheckWeekly bool `json:"checkWeekly"`
+	CheckDaily  bool `json:"checkDaily"`
 }
 
 type SqueezeBase struct {
@@ -96,6 +99,30 @@ func (s *SqueezeBase) onTick(candle hs.Candle, finished bool) {
 	case -2:
 		s.handlerTrendOn(false, r.Last, s.dry)
 	}
+}
+
+func (s *SqueezeBase) isWeeklyUp() (up bool, err error) {
+	candle, err := s.ex.CandleBySize(s.symbol, time.Hour*24*7, 2000)
+	if err != nil {
+		return
+	}
+	r, _ := indicator.Squeeze(
+		s.config.BBL, s.config.KCL, s.config.BBF, s.config.KCF,
+		candle.High, candle.Low, candle.Close,
+	)
+	return r.Trend == 2, nil
+}
+
+func (s *SqueezeBase) isDailyUp() (up bool, err error) {
+	candle, err := s.ex.CandleBySize(s.symbol, time.Hour*24, 2000)
+	if err != nil {
+		return
+	}
+	r, _ := indicator.Squeeze(
+		s.config.BBL, s.config.KCL, s.config.BBF, s.config.KCF,
+		candle.High, candle.Low, candle.Close,
+	)
+	return r.Trend == 2, nil
 }
 
 type SqueezeWs struct {
@@ -179,8 +206,29 @@ func (s *SqueezeRest) Run(ctx context.Context) {
 	s.doWork(ctx)
 }
 
-func (s *SqueezeRest) doWork(ctx context.Context) {
-	s.Sugar.Debug("doWork")
+func (s *SqueezeRest) doWork(_ context.Context) {
+	if s.config.CheckWeekly {
+		up, err := s.isWeeklyUp()
+		if err != nil {
+			s.Sugar.Errorf("check weekly error: %s", err)
+			return
+		}
+		if !up {
+			s.Sugar.Infof("Weekly Squeeze is not uptrend, stop fighting")
+			return
+		}
+	}
+	if s.config.CheckDaily {
+		up, err := s.isDailyUp()
+		if err != nil {
+			s.Sugar.Errorf("check daily error: %s", err)
+			return
+		}
+		if !up {
+			s.Sugar.Infof("Daily Squeeze is not uptrend, stop fighting")
+			return
+		}
+	}
 	candle, err := s.ex.CandleBySize(s.symbol, s.interval, 2000)
 	if err != nil {
 		s.Sugar.Error(err)

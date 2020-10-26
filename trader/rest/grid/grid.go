@@ -82,6 +82,10 @@ func (r *RestGridTrader) initEx(ctx context.Context) {
 		r.symbol = gateio.SERO_USDT
 		r.baseCurrency = gateio.SERO
 		r.quoteCurrency = gateio.USDT
+	case "ampl_usdt":
+		r.symbol = gateio.AMPL_USDT
+		r.baseCurrency = gateio.AMPL
+		r.quoteCurrency = gateio.USDT
 	default:
 		r.symbol = "btc_usdt"
 	}

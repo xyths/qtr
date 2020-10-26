@@ -185,6 +185,7 @@ func (e *BaseExecutor) buyAllMarket() (orderId uint64, err error) {
 		//e.Sugar.Errorf("get client order id error: %s", err)
 		return
 	}
+	e.Sugar.Infof("buy all (market), clientOrderId is %s", clientId)
 	orderId, err = e.ex.BuyMarket(e.Symbol(), clientId, total)
 	if err != nil {
 		//e.Sugar.Errorf("buy error: %s", err)
@@ -215,6 +216,7 @@ func (e *RestExecutor) sellAllMarket() (orderId uint64, err error) {
 	if err != nil {
 		return
 	}
+	e.Sugar.Infof("sell all (market), clientOrderId is %s", clientId)
 	orderId, err = e.ex.SellMarket(e.Symbol(), clientId, amount)
 	if err != nil {
 		return
