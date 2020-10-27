@@ -19,7 +19,7 @@ func init() {
 		Name:    filepath.Base(os.Args[0]),
 		Action:  squeeze,
 		Usage:   "the Squeeze strategy trading robot",
-		Version: "0.3.2",
+		Version: "0.4.0",
 	}
 
 	app.Commands = []*cli.Command{

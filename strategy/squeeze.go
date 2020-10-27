@@ -206,7 +206,8 @@ func (s *SqueezeRest) Run(ctx context.Context) {
 	s.doWork(ctx)
 }
 
-func (s *SqueezeRest) doWork(_ context.Context) {
+func (s *SqueezeRest) doWork(ctx context.Context) {
+	s.checkOrders(ctx)
 	if s.config.CheckWeekly {
 		up, err := s.isWeeklyUp()
 		if err != nil {
@@ -216,6 +217,8 @@ func (s *SqueezeRest) doWork(_ context.Context) {
 		if !up {
 			s.Sugar.Infof("Weekly Squeeze is not uptrend, stop fighting")
 			return
+		} else {
+			s.Sugar.Infof("Weekly Squeeze is uptrend, it's safe to trade now")
 		}
 	}
 	if s.config.CheckDaily {
@@ -227,6 +230,8 @@ func (s *SqueezeRest) doWork(_ context.Context) {
 		if !up {
 			s.Sugar.Infof("Daily Squeeze is not uptrend, stop fighting")
 			return
+		} else {
+			s.Sugar.Infof("Daily Squeeze is uptrend, it's safe to trade now")
 		}
 	}
 	candle, err := s.ex.CandleBySize(s.symbol, s.interval, 2000)
@@ -236,4 +241,8 @@ func (s *SqueezeRest) doWork(_ context.Context) {
 	}
 
 	s.onTick(candle, true)
+}
+
+func (s *SqueezeRest) checkOrders(_ context.Context) {
+
 }

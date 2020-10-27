@@ -12,34 +12,6 @@ type RestExecutor struct {
 	sellOrderId uint64
 }
 
-//func NewRestExecutor(config hs.ExchangeConf) (*RestExecutor, error) {
-//	e := RestExecutor{
-//		config: config,
-//	}
-//	ex, err := huobi.New(e.config.Label, e.config.Key, e.config.Secret, e.config.Host)
-//	if err != nil {
-//		return nil, err
-//	}
-//	e.ex = ex
-//	e.symbol, err = e.ex.GetSymbol(e.config.Symbols[0])
-//	if err != nil {
-//		return nil, err
-//	}
-//	e.fee, err = e.ex.GetFee(e.Symbol())
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	return &e, nil
-//}
-
-//func (e *RestExecutor) Init(
-//	ex exchange.RestAPIExchange, sugar *zap.SugaredLogger, db *mongo.Database,
-//	symbol exchange.Symbol, fee exchange.Fee, maxTotal decimal.Decimal,
-//	robots []broadcast.Broadcaster) {
-//	e.BaseExecutor.Init(ex, sugar, db, symbol, fee, maxTotal, robots)
-//}
-
 func (e *RestExecutor) Load(ctx context.Context) error {
 	if err := e.BaseExecutor.Load(ctx); err != nil {
 		return err
@@ -127,6 +99,63 @@ func (e *RestExecutor) CancelAllSell() error {
 		} else {
 			e.Sugar.Debugf("cancelled order %d", orderId)
 			e.SetSellOrderId(0)
+			return nil
+		}
+	}
+	return nil
+}
+
+func (e *RestExecutor) CheckAll() error {
+	if err := e.CheckAllBuy(); err != nil {
+		return err
+	}
+	if err := e.CheckAllSell(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (e *RestExecutor) CheckAllBuy() error {
+	orderId := e.GetBuyOrderId()
+	if orderId != 0 {
+		fullFilled, err := e.ex.IsFullFilled(e.Symbol(), orderId)
+		if err != nil {
+			e.Sugar.Errorf("check buy order %d error: %s", orderId, err)
+			return err
+		}
+		if fullFilled {
+			e.Sugar.Debugf("buy order %d is full-filled", orderId)
+			e.SetBuyOrderId(0)
+			if o, err1 := e.ex.GetOrderById(orderId, e.Symbol()); err1 != nil {
+				e.Sugar.Errorf("get order %d error: %s", orderId, err1)
+			} else {
+				e.Broadcast("买入成交，订单号: %d / %s, 价格: %s, 数量: %s, 买入总金额: %s",
+					orderId, o.ClientOrderId, o.Price, o.Amount, o.Amount.Mul(o.Price))
+			}
+			return nil
+		}
+	}
+	return nil
+
+}
+
+func (e *RestExecutor) CheckAllSell() error {
+	orderId := e.GetSellOrderId()
+	if orderId != 0 {
+		fullFilled, err := e.ex.IsFullFilled(e.Symbol(), orderId)
+		if err != nil {
+			e.Sugar.Errorf("check sell order %d error: %s", orderId, err)
+			return err
+		}
+		if fullFilled {
+			e.Sugar.Debugf("sell order %d is full-filled", orderId)
+			e.SetSellOrderId(0)
+			if o, err1 := e.ex.GetOrderById(orderId, e.Symbol()); err1 != nil {
+				e.Sugar.Errorf("get order %d error: %s", orderId, err1)
+			} else {
+				e.Broadcast("卖出成交，订单号: %d / %s, 价格: %s, 数量: %s, 买入总金额: %s",
+					orderId, o.ClientOrderId, o.Price, o.Amount, o.Amount.Mul(o.Price))
+			}
 			return nil
 		}
 	}

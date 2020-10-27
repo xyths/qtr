@@ -2,14 +2,19 @@ package executor
 
 import (
 	"context"
+	"fmt"
 	"github.com/shopspring/decimal"
 	"github.com/xyths/hs/broadcast"
 	"github.com/xyths/hs/exchange"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
+	"strings"
+	"time"
 )
 
 type BaseExecutor struct {
+	Name     string
+	Label    string
 	maxTotal decimal.Decimal
 	Sugar    *zap.SugaredLogger
 	db       *mongo.Database
@@ -25,8 +30,10 @@ type BaseExecutor struct {
 
 func (e *BaseExecutor) Init(
 	ex exchange.RestAPIExchange, sugar *zap.SugaredLogger, db *mongo.Database,
-	symbol exchange.Symbol, fee exchange.Fee, maxTotal decimal.Decimal,
+	exName, exLabel string, symbol exchange.Symbol, fee exchange.Fee, maxTotal decimal.Decimal,
 	robots []broadcast.Broadcaster) {
+	e.Name = exName
+	e.Label = exLabel
 	e.ex = ex
 	e.Sugar = sugar
 	e.db = db
@@ -228,4 +235,20 @@ func (e *RestExecutor) sellAllMarket() (orderId uint64, err error) {
 		//return err
 	}
 	return
+}
+
+func (e *RestExecutor) Broadcast(format string, a ...interface{}) {
+	message := fmt.Sprintf(format, a...)
+	labels := []string{e.Name, e.Label}
+	secondsEastOfUTC := int((8 * time.Hour).Seconds())
+	beijing := time.FixedZone("Beijing Time", secondsEastOfUTC)
+	layout := "2006-01-02 15:04:05"
+	timeStr := time.Now().In(beijing).Format(layout)
+
+	msg := fmt.Sprintf("%s [%s] [%s] %s", timeStr, strings.Join(labels, "] ["), e.Symbol(), message)
+	for _, robot := range e.robots {
+		if err := robot.SendText(msg); err != nil {
+			e.Sugar.Infof("broadcast error: %s", err)
+		}
+	}
 }
