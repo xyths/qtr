@@ -118,7 +118,7 @@ func (e *RestExecutor) CheckAll() error {
 func (e *RestExecutor) CheckAllBuy() error {
 	orderId := e.GetBuyOrderId()
 	if orderId != 0 {
-		fullFilled, err := e.ex.IsFullFilled(e.Symbol(), orderId)
+		o, fullFilled, err := e.ex.IsFullFilled(e.Symbol(), orderId)
 		if err != nil {
 			e.Sugar.Errorf("check buy order %d error: %s", orderId, err)
 			return err
@@ -126,12 +126,8 @@ func (e *RestExecutor) CheckAllBuy() error {
 		if fullFilled {
 			e.Sugar.Debugf("buy order %d is full-filled", orderId)
 			e.SetBuyOrderId(0)
-			if o, err1 := e.ex.GetOrderById(orderId, e.Symbol()); err1 != nil {
-				e.Sugar.Errorf("get order %d error: %s", orderId, err1)
-			} else {
-				e.Broadcast("买入成交，订单号: %d / %s, 价格: %s, 数量: %s, 买入总金额: %s",
-					orderId, o.ClientOrderId, o.Price, o.Amount, o.Amount.Mul(o.Price))
-			}
+			e.Broadcast("买入成交，订单号: %d / %s, 价格: %s, 数量: %s, 买入总金额: %s",
+				orderId, o.ClientOrderId, o.Price, o.Amount, o.Amount.Mul(o.Price))
 			return nil
 		}
 	}
@@ -142,7 +138,7 @@ func (e *RestExecutor) CheckAllBuy() error {
 func (e *RestExecutor) CheckAllSell() error {
 	orderId := e.GetSellOrderId()
 	if orderId != 0 {
-		fullFilled, err := e.ex.IsFullFilled(e.Symbol(), orderId)
+		o, fullFilled, err := e.ex.IsFullFilled(e.Symbol(), orderId)
 		if err != nil {
 			e.Sugar.Errorf("check sell order %d error: %s", orderId, err)
 			return err
@@ -150,12 +146,8 @@ func (e *RestExecutor) CheckAllSell() error {
 		if fullFilled {
 			e.Sugar.Debugf("sell order %d is full-filled", orderId)
 			e.SetSellOrderId(0)
-			if o, err1 := e.ex.GetOrderById(orderId, e.Symbol()); err1 != nil {
-				e.Sugar.Errorf("get order %d error: %s", orderId, err1)
-			} else {
-				e.Broadcast("卖出成交，订单号: %d / %s, 价格: %s, 数量: %s, 买入总金额: %s",
-					orderId, o.ClientOrderId, o.Price, o.Amount, o.Amount.Mul(o.Price))
-			}
+			e.Broadcast("卖出成交，订单号: %d / %s, 价格: %s, 数量: %s, 买入总金额: %s",
+				orderId, o.ClientOrderId, o.Price, o.Amount, o.Amount.Mul(o.Price))
 			return nil
 		}
 	}
