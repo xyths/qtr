@@ -245,7 +245,7 @@ func (s *SuperTrendTrader) initHuobi() (err error) {
 	if err != nil {
 		return err
 	}
-	s.symbol, err = s.ex.GetSymbol(s.config.Exchange.Symbols[0])
+	s.symbol, err = s.ex.GetSymbol(context.Background(), s.config.Exchange.Symbols[0])
 	if err != nil {
 		return err
 	}
@@ -348,7 +348,7 @@ func (s *SuperTrendTrader) buy(symbol string, price, stopPrice decimal.Decimal, 
 	}
 }
 
-func (s *SuperTrendTrader) sell(symbol, currency string, amountPrecision int32, minAmount, minTotal decimal.Decimal) {
+func (s *SuperTrendTrader) sell(symbol exchange.Symbol) {
 	balance, err := s.ex.SpotAvailableBalance()
 	if err != nil {
 		s.Sugar.Errorf("get available balance error: %s", err)
@@ -360,12 +360,12 @@ func (s *SuperTrendTrader) sell(symbol, currency string, amountPrecision int32, 
 		return
 	}
 	// sell all balance
-	amount := balance[currency].Round(amountPrecision)
-	if amount.GreaterThan(balance[currency]) {
-		amount = amount.Sub(minAmount)
+	amount := balance[symbol.BaseCurrency].Round(symbol.AmountPrecision)
+	if amount.GreaterThan(balance[symbol.BaseCurrency]) {
+		amount = amount.Sub(symbol.MinAmount)
 	}
 	//logger.Sugar.Debugf("try to sell %s, balance: %v, amount: %s, price: %s", symbol, balance, amount, price)
-	if amount.LessThan(minAmount) {
+	if amount.LessThan(symbol.MinAmount) {
 		s.Sugar.Infof("amount too small: %s", amount)
 		s.SetPosition(-1)
 		return
@@ -409,7 +409,7 @@ func (s *SuperTrendTrader) short(price, stopPrice decimal.Decimal) {
 		// cancel reinforce order
 		s.cancelReinforce()
 	}
-	s.sell(s.Symbol(), s.BaseCurrency(), s.AmountPrecision(), s.MinAmount(), s.MinTotal())
+	s.sell(s.symbol)
 }
 
 func (s *SuperTrendTrader) sellStopLimit(symbol, currency string, price decimal.Decimal,

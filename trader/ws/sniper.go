@@ -370,7 +370,7 @@ func (s *SniperTrader) initHuobi() (err error) {
 	if err != nil {
 		return err
 	}
-	s.symbol, err = s.ex.GetSymbol(s.config.Exchange.Symbols[0])
+	s.symbol, err = s.ex.GetSymbol(context.Background(),s.config.Exchange.Symbols[0])
 	if err != nil {
 		return err
 	}

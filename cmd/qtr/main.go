@@ -17,7 +17,7 @@ func init() {
 	app = &cli.App{
 		Name:    filepath.Base(os.Args[0]),
 		Usage:   "the quantitative trading robot",
-		Version: "1.5.1",
+		Version: "1.6.3",
 	}
 
 	app.Commands = []*cli.Command{
@@ -26,6 +26,7 @@ func init() {
 		superTrendCommand,
 		rtmCommand,
 		taCommand,
+		scanCommand,
 		historyCommand,
 		profitCommand,
 		snapshotCommand,

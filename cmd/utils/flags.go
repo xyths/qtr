@@ -28,6 +28,11 @@ var (
 		Value:   "",
 		Usage:   "end `time` (e.g. \"2020-04-01 23:59:59\", default: now)",
 	}
+	PeriodFlag = &cli.StringFlag{
+		Name:  "period",
+		Value: "1h",
+		Usage: "kline period (e.g. \"5m\", \"1h\", default: 1h)",
+	}
 	ProtocolFlag = &cli.StringFlag{
 		Name:    "protocol",
 		Aliases: []string{"p"},
@@ -68,5 +73,42 @@ var (
 		Name:  "dry-run",
 		Value: false,
 		Usage: "do not run, just print the result",
+	}
+
+	// flags used by scan, aliases refer to TradingView
+	SizeFlag = &cli.Int64Flag{
+		Name:    "size",
+		Aliases: []string{"n"},
+		Value:   2000,
+		Usage:   "number of candles when scan",
+	}
+	ScanMonthlyFlag = &cli.BoolFlag{
+		Name:    "month",
+		Aliases: []string{"M"},
+		Value:   false,
+		Usage:   "scan monthly data",
+	}
+	ScanWeeklyFlag = &cli.BoolFlag{
+		Name:    "week",
+		Aliases: []string{"W"},
+		Value:   false,
+		Usage:   "scan weekly data",
+	}
+	ScanDailyFlag = &cli.BoolFlag{
+		Name:    "day",
+		Aliases: []string{"D"},
+		Value:   false,
+		Usage:   "scan daily data",
+	}
+	Scan4HFlag = &cli.BoolFlag{
+		Name:    "4h",
+		Value:   false,
+		Usage:   "scan 4-hour data",
+	}
+	ScanHourlyFlag = &cli.BoolFlag{
+		Name:    "hour",
+		Aliases: []string{"1h"},
+		Value:   false,
+		Usage:   "scan hourly data",
 	}
 )

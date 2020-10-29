@@ -63,7 +63,7 @@ func (r *RestGridTrader) Init(ctx context.Context) {
 
 func (r *RestGridTrader) initEx() error {
 	r.ex = gateio.New(r.config.Exchange.Key, r.config.Exchange.Secret, r.config.Exchange.Host)
-	symbol, err := r.ex.GetSymbol(r.config.Exchange.Symbols[0])
+	symbol, err := r.ex.GetSymbol(context.Background(), r.config.Exchange.Symbols[0])
 	if err != nil {
 		return err
 	}

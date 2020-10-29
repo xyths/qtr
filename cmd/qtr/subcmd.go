@@ -2,15 +2,17 @@ package main
 
 import (
 	"github.com/urfave/cli/v2"
+	"github.com/xyths/hs"
 	"github.com/xyths/hs/logger"
 	"github.com/xyths/qtr/cmd/utils"
 	"github.com/xyths/qtr/history"
 	"github.com/xyths/qtr/node"
+	"github.com/xyths/qtr/ta"
 	"github.com/xyths/qtr/ta/atr"
-	"github.com/xyths/qtr/ta/natr"
 	"github.com/xyths/qtr/trader/rest/grid"
 	"github.com/xyths/qtr/trader/rest/turtle"
 	"github.com/xyths/qtr/trader/ws"
+	"time"
 )
 
 var (
@@ -137,10 +139,10 @@ var (
 		Name:  "ta",
 		Usage: "Technical analysis on cryptocurrency",
 		Flags: []cli.Flag{
-			utils.ExchangeFlag,
 			utils.StartTimeFlag,
 			utils.EndTimeFlag,
-			utils.OutputPngFlag,
+			utils.PeriodFlag,
+			utils.OutputCsvFlag,
 		},
 		Subcommands: []*cli.Command{
 			{
@@ -157,6 +159,31 @@ var (
 				Action: boll,
 				Name:   "boll",
 				Usage:  "Bollinger Bands",
+			},
+		},
+	}
+	scanCommand = &cli.Command{
+		Name:  "scan",
+		Usage: "Scan cryptocurrencies on Exchange by Technical analysis indicators",
+		Flags: []cli.Flag{
+			utils.OutputCsvFlag,
+			utils.SizeFlag,
+			utils.ScanMonthlyFlag,
+			utils.ScanWeeklyFlag,
+			utils.ScanDailyFlag,
+			utils.Scan4HFlag,
+			utils.ScanHourlyFlag,
+		},
+		Subcommands: []*cli.Command{
+			{
+				Action: superScan,
+				Name:   "super",
+				Usage:  "Scan by SuperTrend indicator",
+			},
+			{
+				Action: squeezeScan,
+				Name:   "squeeze",
+				Usage:  "Scan by Squeeze indicator",
 			},
 		},
 	}
@@ -300,15 +327,28 @@ func atrFunc(ctx *cli.Context) error {
 }
 
 func natrFunc(ctx *cli.Context) error {
-	ex := ctx.String(utils.ExchangeFlag.Name)
+	cfgFile := ctx.String(utils.ConfigFlag.Name)
+	cfg := ta.Config{}
+	if err := hs.ParseJsonConfig(cfgFile, &cfg); err != nil {
+		return err
+	}
 	start := ctx.String(utils.StartTimeFlag.Name)
 	end := ctx.String(utils.EndTimeFlag.Name)
-	output := ctx.String(utils.OutputPngFlag.Name)
+	period := ctx.String(utils.PeriodFlag.Name)
+	output := ctx.String(utils.OutputCsvFlag.Name)
 	startTime, endTime, err := utils.ParseStartEndTime(start, end)
 	if err != nil {
 		logger.Sugar.Fatal(err)
 	}
-	return natr.All(ex, ctx.Args().Slice(), startTime, endTime, output)
+	d, err := time.ParseDuration(period)
+	if err != nil {
+		logger.Sugar.Fatal(err)
+	}
+	agent := ta.NewAgent(cfg)
+	if err := agent.Init(); err != nil {
+		return err
+	}
+	return agent.NATR(ctx.Context, ctx.Args().Slice(), startTime, endTime, d, output)
 }
 
 func boll(ctx *cli.Context) error {
@@ -441,4 +481,44 @@ func rtmClear(ctx *cli.Context) error {
 	//defer t.Close(ctx.Context)
 	//return t.Clear(ctx.Context)
 	return nil
+}
+
+func superScan(ctx *cli.Context) error {
+	cfgFile := ctx.String(utils.ConfigFlag.Name)
+	cfg := ta.Config{}
+	if err := hs.ParseJsonConfig(cfgFile, &cfg); err != nil {
+		return err
+	}
+	output := ctx.String(utils.OutputCsvFlag.Name)
+	size := ctx.Int64(utils.SizeFlag.Name)
+	monthly := ctx.Bool(utils.ScanMonthlyFlag.Name)
+	weekly := ctx.Bool(utils.ScanWeeklyFlag.Name)
+	daily := ctx.Bool(utils.ScanDailyFlag.Name)
+	h4 := ctx.Bool(utils.Scan4HFlag.Name)
+	h1 := ctx.Bool(utils.ScanHourlyFlag.Name)
+	agent := ta.NewAgent(cfg)
+	if err := agent.Init(); err != nil {
+		return err
+	}
+	return agent.SuperTrend(ctx.Context, ctx.Args().Slice(), size, monthly, weekly, daily, h4, h1, output)
+}
+
+func squeezeScan(ctx *cli.Context) error {
+	cfgFile := ctx.String(utils.ConfigFlag.Name)
+	cfg := ta.Config{}
+	if err := hs.ParseJsonConfig(cfgFile, &cfg); err != nil {
+		return err
+	}
+	output := ctx.String(utils.OutputCsvFlag.Name)
+	size := ctx.Int64(utils.SizeFlag.Name)
+	monthly := ctx.Bool(utils.ScanMonthlyFlag.Name)
+	weekly := ctx.Bool(utils.ScanWeeklyFlag.Name)
+	daily := ctx.Bool(utils.ScanDailyFlag.Name)
+	h4 := ctx.Bool(utils.Scan4HFlag.Name)
+	h1 := ctx.Bool(utils.ScanHourlyFlag.Name)
+	agent := ta.NewAgent(cfg)
+	if err := agent.Init(); err != nil {
+		return err
+	}
+	return agent.Squeeze(ctx.Context, ctx.Args().Slice(), size, monthly, weekly, daily, h4, h1, output)
 }

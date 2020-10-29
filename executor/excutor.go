@@ -44,7 +44,7 @@ func NewExecutor(config hs.ExchangeConf) (*Executor, error) {
 		return nil, err
 	}
 	e.ex = ex
-	e.symbol, err = e.ex.GetSymbol(e.config.Symbols[0])
+	e.symbol, err = e.ex.GetSymbol(context.Background(), e.config.Symbols[0])
 	if err != nil {
 		return nil, err
 	}
@@ -322,7 +322,7 @@ func (e *Executor) BuyAllMarket() error {
 		//e.Sugar.Errorf("get client order id error: %s", err)
 		return err
 	}
-	orderId, err := e.ex.BuyMarket(e.Symbol(), clientId, total)
+	orderId, err := e.ex.BuyMarket(e.symbol, clientId, total)
 	if err != nil {
 		//e.Sugar.Errorf("buy error: %s", err)
 		return err
@@ -353,7 +353,7 @@ func (e *Executor) SellAllMarket() error {
 		//e.Sugar.Errorf("get client order id error: %s", err)
 		return err
 	}
-	orderId, err := e.ex.SellMarket(e.Symbol(), clientId, amount)
+	orderId, err := e.ex.SellMarket(e.symbol, clientId, amount)
 	if err != nil {
 		//e.Sugar.Errorf("sell error: %s", err)
 		return err
