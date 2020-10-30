@@ -17,13 +17,15 @@ func init() {
 	app = &cli.App{
 		Name:    filepath.Base(os.Args[0]),
 		Usage:   "the quantitative trading robot",
-		Version: "1.6.3",
+		Version: "1.7.0",
 	}
 
 	app.Commands = []*cli.Command{
 		gridCommand,
+		multiGridCommand,
 		turtleCommand,
 		superTrendCommand,
+		sniperCommand,
 		rtmCommand,
 		taCommand,
 		scanCommand,

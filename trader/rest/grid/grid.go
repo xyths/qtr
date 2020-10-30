@@ -31,7 +31,9 @@ type RestGridTrader struct {
 	ex     *gateio.GateIO
 	robots []broadcast.Broadcaster
 
-	Symbol exchange.Symbol
+	Symbol  exchange.Symbol
+	Running bool // true => on, false => off
+	stopCh  chan int
 
 	scale  decimal.Decimal
 	grids  []hs.Grid
@@ -50,20 +52,33 @@ func New(configFilename string) *RestGridTrader {
 	}
 }
 
+func NewFrom(configFilename string) *RestGridTrader {
+	cfg := Config{}
+	if err := hs.ParseJsonConfig(configFilename, &cfg); err != nil {
+		log.Fatal(err)
+	}
+	return &RestGridTrader{
+		config: cfg,
+	}
+}
+
 func (r *RestGridTrader) Init(ctx context.Context) {
 	db, err := hs.ConnectMongo(ctx, r.config.Mongo)
 	if err != nil {
 		logger.Sugar.Fatal(err)
 	}
 	r.db = db
-	r.initEx()
+	if err := r.initEx(ctx); err != nil {
+		logger.Sugar.Fatal(err)
+	}
 	r.initGrids(ctx)
 	r.initRobots(ctx)
+	r.stopCh = make(chan int, 1)
 }
 
-func (r *RestGridTrader) initEx() error {
+func (r *RestGridTrader) initEx(ctx context.Context) error {
 	r.ex = gateio.New(r.config.Exchange.Key, r.config.Exchange.Secret, r.config.Exchange.Host)
-	symbol, err := r.ex.GetSymbol(context.Background(), r.config.Exchange.Symbols[0])
+	symbol, err := r.ex.GetSymbol(ctx, r.config.Exchange.Symbols[0])
 	if err != nil {
 		return err
 	}
@@ -217,7 +232,6 @@ func (r *RestGridTrader) loadGrids(ctx context.Context) bool {
 
 func (r *RestGridTrader) Start(ctx context.Context) error {
 	_ = r.Print(ctx)
-
 	if !r.loadGrids(ctx) {
 		logger.Sugar.Info("no order loaded")
 		// rebalance
@@ -235,16 +249,27 @@ func (r *RestGridTrader) Start(ctx context.Context) error {
 	if err != nil {
 		logger.Sugar.Fatalf("error interval format: %s", r.config.Strategy.Interval)
 	}
+	logger.Sugar.Infof("grid (%s) is started", r.Symbol.Symbol)
+	r.Running = true
 	r.checkOrders(ctx)
 	for {
 		select {
 		case <-ctx.Done():
 			logger.Sugar.Info("context cancelled")
+			r.Running = false
+			return nil
+		case <-r.stopCh:
+			logger.Sugar.Infof("grid (%s) is stopped", r.Symbol.Symbol)
+			r.Running = false
 			return nil
 		case <-time.After(interval):
 			r.checkOrders(ctx)
 		}
 	}
+}
+func (r *RestGridTrader) Stop(ctx context.Context) error {
+	r.stopCh <- 1
+	return nil
 }
 
 func (r *RestGridTrader) ReBalance(ctx context.Context, dryRun bool) error {

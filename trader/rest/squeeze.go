@@ -128,7 +128,7 @@ func (t *SqueezeMomentumTrader) initExecutor() (err error) {
 	case "gate":
 		ex = gateio.New(cfg.Key, cfg.Secret, cfg.Host)
 	}
-	symbol, err := ex.GetSymbol(cfg.Symbols[0])
+	symbol, err := ex.GetSymbol(context.Background(), cfg.Symbols[0])
 	if err != nil {
 		return
 	}
