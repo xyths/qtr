@@ -2,8 +2,12 @@ package main
 
 import (
 	"github.com/urfave/cli/v2"
+	"github.com/xyths/hs"
+	"github.com/xyths/hs/logger"
 	"github.com/xyths/qtr/cmd/utils"
+	"github.com/xyths/qtr/ta"
 	"log"
+	"time"
 )
 
 var (
@@ -27,13 +31,21 @@ var (
 		},
 	}
 	huobiCommand = &cli.Command{
-		Action: export,
-		Name:   "export",
-		Usage:  "Export candle to csv",
-		Flags: []cli.Flag{
-			utils.StartTimeFlag,
-			utils.EndTimeFlag,
-			utils.OutputCsvFlag,
+		Name:  "huobi",
+		Usage: "Download candle from Huobi exchange",
+		Subcommands: []*cli.Command{
+			{
+				Action: huobiDownload,
+				Name:   "download",
+				Usage:  "download Huobi candlestick to csv",
+				Flags: []cli.Flag{
+					SymbolFlag,
+					utils.PeriodFlag,
+					utils.StartTimeFlag,
+					utils.EndTimeFlag,
+					utils.OutputCsvFlag,
+				},
+			},
 		},
 	}
 )
@@ -58,9 +70,32 @@ func gateCandlestick(ctx *cli.Context) error {
 	return nil
 }
 
-func export(ctx *cli.Context) error {
-	n := utils.GetNode(ctx)
-	defer n.Close()
-	//return n.Export(ctx.Context)
+func huobiDownload(ctx *cli.Context) error {
+	cfgFile := ctx.String(utils.ConfigFlag.Name)
+	cfg := ta.Config{}
+	if err := hs.ParseJsonConfig(cfgFile, &cfg); err != nil {
+		return err
+	}
+	symbol := ctx.String(SymbolFlag.Name)
+	start := ctx.String(utils.StartTimeFlag.Name)
+	end := ctx.String(utils.EndTimeFlag.Name)
+	period := ctx.String(utils.PeriodFlag.Name)
+	output := ctx.String(utils.OutputCsvFlag.Name)
+	startTime, endTime, err := utils.ParseStartEndTime(start, end)
+	if err != nil {
+		logger.Sugar.Fatal(err)
+	}
+	d, err := time.ParseDuration(period)
+	if err != nil {
+		logger.Sugar.Fatal(err)
+	}
+	agent := ta.NewAgent(cfg)
+	if err := agent.Init(); err != nil {
+		return err
+	}
+	if err := agent.DownloadFrom(ctx.Context, symbol, startTime, endTime, d, output); err != nil {
+		return err
+	}
+
 	return nil
 }

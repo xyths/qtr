@@ -75,6 +75,38 @@ func (a *Agent) NATR(ctx context.Context, symbols []string, start, end time.Time
 	return natr.WriteToCsv(r, output)
 }
 
+// just download to csv, no indicators call
+func (a *Agent) DownloadFrom(ctx context.Context, symbol string, from,to time.Time, period time.Duration, output string) error {
+	a.Sugar.Infof("calculate SuperTrend in details for %s", symbol)
+	candle, err := a.ex.CandleFrom(symbol, "1111",period, from,to)
+	if err != nil {
+		a.Sugar.Errorf("get candle error: %s", err)
+		return err
+	}
+	// write to csv
+	f, err := os.Create(output)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	w := csv.NewWriter(f)
+	defer w.Flush()
+
+	// this is mplfinance default header
+	header := []string{"Date", "Open", "High", "Low", "Close", "Volume"}
+	_ = w.Write(header)
+	for i := 0; i < candle.Length(); i++ {
+		line := []string{fmt.Sprintf("%d", candle.Timestamp[i])}
+		line = append(line, fmt.Sprintf("%f", candle.Open[i]))
+		line = append(line, fmt.Sprintf("%f", candle.High[i]))
+		line = append(line, fmt.Sprintf("%f", candle.Low[i]))
+		line = append(line, fmt.Sprintf("%f", candle.Close[i]))
+		line = append(line, fmt.Sprintf("%f", candle.Volume[i]))
+		_ = w.Write(line)
+	}
+	return nil
+}
+
 func (a *Agent) SuperTrendSingle(ctx context.Context, symbol string, size int64, period time.Duration, output string) error {
 	a.Sugar.Infof("calculate SuperTrend in details for %s", symbol)
 	candle, err := a.ex.CandleBySize(symbol, period, int(size))
