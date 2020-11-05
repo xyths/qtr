@@ -15,7 +15,7 @@ require (
 	github.com/thrasher-corp/gct-ta v0.0.0-20200623072738-f2b55b7f9f41
 	github.com/thrasher-corp/gocryptotrader v0.0.0-20200710060040-409fc6478ecc
 	github.com/urfave/cli/v2 v2.2.0
-	github.com/xyths/go-indicators v0.4.4
+	github.com/xyths/go-indicators v0.4.5
 	github.com/xyths/hs v0.26.1
 	go.mongodb.org/mongo-driver v1.4.1
 	go.uber.org/zap v1.16.0

@@ -2,7 +2,10 @@ package ta
 
 import (
 	"context"
+	"encoding/csv"
 	"errors"
+	"fmt"
+	indicator "github.com/xyths/go-indicators"
 	"github.com/xyths/hs"
 	"github.com/xyths/hs/exchange"
 	"github.com/xyths/hs/exchange/gateio"
@@ -11,6 +14,7 @@ import (
 	"github.com/xyths/qtr/ta/squeeze"
 	"github.com/xyths/qtr/ta/supertrend"
 	"go.uber.org/zap"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -69,6 +73,41 @@ func (a *Agent) NATR(ctx context.Context, symbols []string, start, end time.Time
 	}
 	// write to csv
 	return natr.WriteToCsv(r, output)
+}
+
+func (a *Agent) SuperTrendSingle(ctx context.Context, symbol string, size int64, period time.Duration, output string) error {
+	a.Sugar.Infof("calculate SuperTrend in details for %s", symbol)
+	candle, err := a.ex.CandleBySize(symbol, period, int(size))
+	if err != nil {
+		a.Sugar.Errorf("get candle error: %s", err)
+		return err
+	}
+	upper, lower, tsl, trend := indicator.SuperTrendDetail(3, 7, candle.High, candle.Low, candle.Close)
+	// write to csv
+	f, err := os.Create(output)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	w := csv.NewWriter(f)
+	defer w.Flush()
+
+	header := []string{"Date", "Open", "High", "Low", "Close", "Volume", "upper", "lower", "tsl", "trend"}
+	_ = w.Write(header)
+	for i := 0; i < candle.Length(); i++ {
+		line := []string{fmt.Sprintf("%d", candle.Timestamp[i])}
+		line = append(line, fmt.Sprintf("%f", candle.Open[i]))
+		line = append(line, fmt.Sprintf("%f", candle.High[i]))
+		line = append(line, fmt.Sprintf("%f", candle.Low[i]))
+		line = append(line, fmt.Sprintf("%f", candle.Close[i]))
+		line = append(line, fmt.Sprintf("%f", candle.Volume[i]))
+		line = append(line, fmt.Sprintf("%f", upper[i]))
+		line = append(line, fmt.Sprintf("%f", lower[i]))
+		line = append(line, fmt.Sprintf("%f", tsl[i]))
+		line = append(line, fmt.Sprintf("%v", trend[i]))
+		_ = w.Write(line)
+	}
+	return nil
 }
 
 func (a *Agent) SuperTrend(ctx context.Context, symbols []string, size int64, monthly, weekly, daily, hour4, hour1 bool, output string) error {

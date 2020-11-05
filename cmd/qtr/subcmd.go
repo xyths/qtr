@@ -174,6 +174,7 @@ var (
 			utils.StartTimeFlag,
 			utils.EndTimeFlag,
 			utils.PeriodFlag,
+			utils.SizeFlag,
 			utils.OutputCsvFlag,
 		},
 		Subcommands: []*cli.Command{
@@ -186,6 +187,11 @@ var (
 				Action: natrFunc,
 				Name:   "natr",
 				Usage:  "NATR(Normalized Average True Range)",
+			},
+			{
+				Action: superFunc,
+				Name:   "super",
+				Usage:  "SuperTrend indicator values in detail for one symbol",
 			},
 			{
 				Action: boll,
