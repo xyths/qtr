@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/urfave/cli/v2"
+	"github.com/xyths/qtr/cmd/utils"
 	"os"
 	"path/filepath"
 )
@@ -13,7 +14,7 @@ func init() {
 	app = &cli.App{
 		Name:    filepath.Base(os.Args[0]),
 		Usage:   "test kline data for specific strategy",
-		Version: "0.1.0",
+		Version: "0.2.0",
 	}
 
 	app.Commands = []*cli.Command{
@@ -25,9 +26,9 @@ func init() {
 		//profitCommand,
 		//snapshotCommand,
 	}
-	//app.Flags = []cli.Flag{
-	//	utils.ConfigFlag,
-	//}
+	app.Flags = []cli.Flag{
+		utils.ConfigFlag,
+	}
 }
 
 func main() {
