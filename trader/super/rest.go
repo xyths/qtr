@@ -118,12 +118,11 @@ func (t *RestTrader) Start(ctx context.Context) {
 // 2. check candle state
 // 3. buy or sell (market price)
 func (t *RestTrader) doWork(ctx context.Context) {
-	t.Sugar.Info("doWork")
 	candle, err := t.ex.CandleBySize(t.Symbol(), t.interval, 2000)
 	if err != nil {
 		return
 	}
-	t.onTick(candle, true)
+	t.onTick(candle, false)
 }
 
 func (t *RestTrader) onTick(c hs.Candle, dry bool) {

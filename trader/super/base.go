@@ -10,7 +10,6 @@ import (
 	"github.com/xyths/hs/exchange"
 	"github.com/xyths/hs/exchange/gateio"
 	"github.com/xyths/hs/exchange/huobi"
-	"github.com/xyths/hs/logger"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
 	"strings"
@@ -39,7 +38,7 @@ type BaseTrader struct {
 func NewBaseTraderFromConfig(ctx context.Context, cfg Config) (*BaseTrader, error) {
 	interval, err := time.ParseDuration(cfg.Strategy.Interval)
 	if err != nil {
-		logger.Sugar.Fatalf("error interval format: %s", cfg.Strategy.Interval)
+		return nil, err
 	}
 	s := &BaseTrader{
 		config:   cfg,
@@ -146,7 +145,7 @@ func (t *BaseTrader) Broadcast(format string, a ...interface{}) {
 	layout := "2006-01-02 15:04:05"
 	timeStr := time.Now().In(beijing).Format(layout)
 
-	msg := fmt.Sprintf("%t [%t] [%t] %t", timeStr, strings.Join(labels, "] ["), t.Symbol(), message)
+	msg := fmt.Sprintf("%s [%s] [%s] %s", timeStr, strings.Join(labels, "] ["), t.Symbol(), message)
 	for _, robot := range t.robots {
 		if err := robot.SendText(msg); err != nil {
 			t.Sugar.Infof("broadcast error: %t", err)
