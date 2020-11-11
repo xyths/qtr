@@ -15,6 +15,9 @@ qsnap.*
 grid_linux.*
 qsnap*
 squeeze*
+qst.*
+qst_linux.*
+qresearch*
 
 # Test binary, built with `go test -c`
 *.test
