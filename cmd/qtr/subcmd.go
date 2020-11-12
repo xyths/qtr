@@ -11,6 +11,7 @@ import (
 	"github.com/xyths/qtr/ta/atr"
 	"github.com/xyths/qtr/trader/rest/grid"
 	"github.com/xyths/qtr/trader/rest/turtle"
+	"github.com/xyths/qtr/trader/super"
 	"github.com/xyths/qtr/trader/ws"
 	"time"
 )
@@ -448,7 +449,7 @@ func turtleClearAction(ctx *cli.Context) error {
 func superTrend(ctx *cli.Context) error {
 	configFile := ctx.String(utils.ConfigFlag.Name)
 	dry := ctx.Bool(utils.DryRunFlag.Name)
-	t, err := ws.NewSuperTrendTrader(ctx.Context, configFile)
+	t, err := super.NewWsTrader(ctx.Context, configFile)
 	if err != nil {
 		return err
 	}
@@ -461,7 +462,7 @@ func superTrend(ctx *cli.Context) error {
 
 func superTrendPrint(ctx *cli.Context) error {
 	configFile := ctx.String(utils.ConfigFlag.Name)
-	t, err := ws.NewSuperTrendTrader(ctx.Context, configFile)
+	t, err := super.NewWsTrader(ctx.Context, configFile)
 	if err != nil {
 		return err
 	}
@@ -471,7 +472,7 @@ func superTrendPrint(ctx *cli.Context) error {
 
 func superTrendClear(ctx *cli.Context) error {
 	configFile := ctx.String(utils.ConfigFlag.Name)
-	t, err := ws.NewSuperTrendTrader(ctx.Context, configFile)
+	t, err := super.NewWsTrader(ctx.Context, configFile)
 	if err != nil {
 		return err
 	}
@@ -482,7 +483,7 @@ func superTrendClear(ctx *cli.Context) error {
 func sniper(ctx *cli.Context) error {
 	configFile := ctx.String(utils.ConfigFlag.Name)
 	dry := ctx.Bool(utils.DryRunFlag.Name)
-	t, err := ws.NewSuperTrendTrader(ctx.Context, configFile)
+	t, err := super.NewWsTrader(ctx.Context, configFile)
 	if err != nil {
 		return err
 	}
@@ -495,7 +496,7 @@ func sniper(ctx *cli.Context) error {
 
 func sniperPrint(ctx *cli.Context) error {
 	configFile := ctx.String(utils.ConfigFlag.Name)
-	t, err := ws.NewSuperTrendTrader(ctx.Context, configFile)
+	t, err := super.NewWsTrader(ctx.Context, configFile)
 	if err != nil {
 		return err
 	}
@@ -505,7 +506,7 @@ func sniperPrint(ctx *cli.Context) error {
 
 func sniperClear(ctx *cli.Context) error {
 	configFile := ctx.String(utils.ConfigFlag.Name)
-	t, err := ws.NewSuperTrendTrader(ctx.Context, configFile)
+	t, err := super.NewWsTrader(ctx.Context, configFile)
 	if err != nil {
 		return err
 	}
@@ -529,7 +530,7 @@ func rtm(ctx *cli.Context) error {
 
 func rtmPrint(ctx *cli.Context) error {
 	//configFile := ctx.String(utils.ConfigFlag.Name)
-	//t, err := ws.NewSuperTrendTrader(ctx.Context, configFile)
+	//t, err := super.NewWsTrader(ctx.Context, configFile)
 	//if err != nil {
 	//	return err
 	//}
@@ -540,7 +541,7 @@ func rtmPrint(ctx *cli.Context) error {
 
 func rtmClear(ctx *cli.Context) error {
 	//configFile := ctx.String(utils.ConfigFlag.Name)
-	//t, err := ws.NewSuperTrendTrader(ctx.Context, configFile)
+	//t, err := super.NewWsTrader(ctx.Context, configFile)
 	//if err != nil {
 	//	return err
 	//}

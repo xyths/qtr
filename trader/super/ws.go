@@ -61,7 +61,7 @@ var (
 	emptyReinforceSellOrder = executor.SellStopOrder{Name: "reinforceSellOrder"}
 )
 
-func NewSuperTrendTrader(ctx context.Context, configFilename string) (*WsTrader, error) {
+func NewWsTrader(ctx context.Context, configFilename string) (*WsTrader, error) {
 	cfg := Config{}
 	if err := hs.ParseJsonConfig(configFilename, &cfg); err != nil {
 		return nil, err
