@@ -22,13 +22,13 @@ func All(exchange string, symbols []string, start, end time.Time) error {
 		}
 		var high []float64
 		var low []float64
-		var close []float64
+		var close_ []float64
 		for _, c := range item.Candles {
 			high = append(high, c.High)
 			low = append(low, c.Low)
-			close = append(close, c.Close)
+			close_ = append(close_, c.Close)
 		}
-		atrSeries := indicators.ATR(high, low, close, 14)
+		atrSeries := indicators.ATR(high, low, close_, 14)
 		logger.Sugar.Info(atrSeries)
 	}
 	return nil

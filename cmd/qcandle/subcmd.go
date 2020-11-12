@@ -1,12 +1,13 @@
 package main
 
 import (
+	"github.com/thrasher-corp/gocryptotrader/currency"
+	"github.com/thrasher-corp/gocryptotrader/exchanges/asset"
 	"github.com/urfave/cli/v2"
 	"github.com/xyths/hs"
 	"github.com/xyths/hs/logger"
 	"github.com/xyths/qtr/cmd/utils"
 	"github.com/xyths/qtr/ta"
-	"log"
 	"time"
 )
 
@@ -21,11 +22,10 @@ var (
 				Usage:  "candlestick of gate",
 				Flags: []cli.Flag{
 					SymbolFlag,
-					TypeFlag,
+					utils.PeriodFlag,
 					utils.StartTimeFlag,
 					utils.EndTimeFlag,
 					utils.OutputCsvFlag,
-					HostFlag,
 				},
 			},
 		},
@@ -51,23 +51,33 @@ var (
 )
 
 func gateCandlestick(ctx *cli.Context) error {
+	cfgFile := ctx.String(utils.ConfigFlag.Name)
+	cfg := ta.Config{}
+	if err := hs.ParseJsonConfig(cfgFile, &cfg); err != nil {
+		return err
+	}
+	period := ctx.String(utils.PeriodFlag.Name)
+	d, err := time.ParseDuration(period)
+	if err != nil {
+		logger.Sugar.Fatal(err)
+	}
 	symbol := ctx.String(SymbolFlag.Name)
-	cType := ctx.String(TypeFlag.Name)
-	startTime := ctx.String(utils.StartTimeFlag.Name)
-	endTime := ctx.String(utils.EndTimeFlag.Name)
-	host := ctx.String(HostFlag.Name)
-	log.Printf("symbol: %s, type: %s,  start: %s, end: %s, host: %s", symbol, cType, startTime, endTime, host)
+	start := ctx.String(utils.StartTimeFlag.Name)
+	end := ctx.String(utils.EndTimeFlag.Name)
+	output := ctx.String(utils.OutputCsvFlag.Name)
+	startTime, endTime, err := utils.ParseStartEndTime(start, end)
 
-	// use hs.gateio.CandleFrom
-	//g := gateio.New("", "", host)
-	//candles, err := g.Candles(symbol, groupSec, rangeHour)
-	//if err != nil {
-	//	log.Printf("get candle error: %s", err)
-	//}
-	//for _, c := range candles {
-	//	log.Printf("%d,%s,%s,%s,%s,%s", c.Timestamp, c.Open, c.High, c.Low, c.Close, c.Volume)
-	//}
-	return nil
+	ex := getExchange(cfg.Exchange)
+	if ex == nil {
+		return nil
+	}
+	currencyPair := currency.NewPairFromString(symbol)
+	interval := getInterval(d)
+	item, err := ex.GetHistoricCandles(currencyPair, asset.Spot, startTime, endTime, interval)
+	if err != nil {
+		return err
+	}
+	return writeToCsv(item, output)
 }
 
 func huobiDownload(ctx *cli.Context) error {

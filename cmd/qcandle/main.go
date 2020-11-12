@@ -14,7 +14,7 @@ func init() {
 	app = &cli.App{
 		Name:    filepath.Base(os.Args[0]),
 		Usage:   "the candlestick downloader for quantitative trading",
-		Version: "0.3.0",
+		Version: "0.4.0",
 	}
 
 	app.Commands = []*cli.Command{

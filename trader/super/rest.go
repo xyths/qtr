@@ -97,9 +97,15 @@ func (t *RestTrader) Start(ctx context.Context) {
 	t.checkState(ctx)
 
 	t.doWork(ctx)
-	wakeTime := time.Now().Truncate(t.interval)
+	wakeTime := time.Now()
+	if t.interval == time.Hour*24 {
+		wakeTime = time.Date(wakeTime.Year(), wakeTime.Month(), wakeTime.Day(), 0, 0, 0, 0, wakeTime.Location())
+	} else {
+		wakeTime = wakeTime.Truncate(t.interval)
+	}
 	wakeTime = wakeTime.Add(t.interval)
 	sleepTime := time.Until(wakeTime)
+	t.Sugar.Debugf("next check time: %s", wakeTime.String())
 	for {
 		select {
 		case <-ctx.Done():
@@ -109,6 +115,7 @@ func (t *RestTrader) Start(ctx context.Context) {
 			t.doWork(ctx)
 			wakeTime = wakeTime.Add(t.interval)
 			sleepTime = time.Until(wakeTime)
+			t.Sugar.Debugf("next check time: %s", wakeTime.String())
 		}
 	}
 }
@@ -145,9 +152,9 @@ func (t *RestTrader) onTick(c hs.Candle, dry bool) {
 
 	_ = price
 	if trend[l-2] {
-		t.Sugar.Infof("in buy channel, stop price is %s", stop)
+		t.Sugar.Infof("in buy channel, stop price is %s, position is %d", stop, t.position)
 	} else {
-		t.Sugar.Infof("in sell channel, upper band price is %s", stop)
+		t.Sugar.Infof("in sell channel, upper band price is %s, position is %d", stop, t.position)
 	}
 
 	if trend[l-2] && (!trend[l-3] || t.position != 1) {

@@ -30,3 +30,9 @@ func ParseStartEndTime(start, end string) (startTime, endTime time.Time, err err
 	}
 	return
 }
+
+func ParseBeijingTime(str string) (time.Time, error) {
+	secondsEastOfUTC := int((8 * time.Hour).Seconds())
+	beijing := time.FixedZone("Beijing Time", secondsEastOfUTC)
+	return time.ParseInLocation(TimeLayout, str, beijing)
+}

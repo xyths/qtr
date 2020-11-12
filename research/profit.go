@@ -9,7 +9,7 @@ import (
 	"strconv"
 )
 
-func readData(filename string,header bool) (timestamp []int64, open, high, low, close []float64) {
+func readData(filename string, header bool) (timestamp []int64, open, high, low, close []float64) {
 	f, err := os.Open(filename)
 	if err != nil {
 		logger.Sugar.Fatalf("open file error: %s", err)
@@ -48,6 +48,13 @@ type SuperTrendReturn struct {
 	Annual float64
 }
 
+type SuperTrendWindowReturn struct {
+	Timestamp int64
+	Final     float64
+	Rate      float64
+	Annual    float64
+}
+
 func writeResult(results []SuperTrendReturn, output string) error {
 	f, err := os.Create(output)
 	if err != nil {
@@ -55,10 +62,23 @@ func writeResult(results []SuperTrendReturn, output string) error {
 	}
 	defer f.Close()
 
-
 	fmt.Fprintln(f, "Factor,Period,Final,Rate,AnnualRate")
 	for _, r := range results {
-		fmt.Fprintf(f,"%f,%d,%f,%f,%f\n", r.Factor, r.Period, r.Final, r.Rate, r.Annual)
+		fmt.Fprintf(f, "%f,%d,%f,%f,%f\n", r.Factor, r.Period, r.Final, r.Rate, r.Annual)
+	}
+	return nil
+}
+
+func writeWindowResult(results []SuperTrendWindowReturn, output string) error {
+	f, err := os.Create(output)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	fmt.Fprintln(f, "Time,Final,Rate,AnnualRate")
+	for _, r := range results {
+		fmt.Fprintf(f, "%d,%f,%f,%f\n", r.Timestamp, r.Final, r.Rate, r.Annual)
 	}
 	return nil
 }

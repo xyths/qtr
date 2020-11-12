@@ -14,17 +14,11 @@ func init() {
 	app = &cli.App{
 		Name:    filepath.Base(os.Args[0]),
 		Usage:   "test kline data for specific strategy",
-		Version: "0.2.0",
+		Version: "0.4.0",
 	}
 
 	app.Commands = []*cli.Command{
-		//gridCommand,
-		//turtleCommand,
 		superTrendCommand,
-		//taCommand,
-		//historyCommand,
-		//profitCommand,
-		//snapshotCommand,
 	}
 	app.Flags = []cli.Flag{
 		utils.ConfigFlag,
