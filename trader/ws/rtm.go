@@ -8,7 +8,6 @@ import (
 	"github.com/xyths/hs/broadcast"
 	"github.com/xyths/qtr/executor"
 	"github.com/xyths/qtr/strategy"
-	"github.com/xyths/qtr/trader/common/const"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
 	"strings"
@@ -200,11 +199,13 @@ func (t *RtmTrader) loadState(ctx context.Context) error {
 	return nil
 }
 
+const collNameState = "state"
+
 func (t *RtmTrader) clearState(ctx context.Context) {
 	//t.ClientIdManager.LongReset(ctx)
 	//t.ClientIdManager.ShortReset(ctx)
 
-	coll := t.db.Collection(coll.collNameState)
+	coll := t.db.Collection(collNameState)
 	if err := hs.DeleteInt64(ctx, coll, "sellStopOrder"); err != nil {
 		t.Sugar.Errorf("delete sellStopOrder error: %s", err)
 	} else {

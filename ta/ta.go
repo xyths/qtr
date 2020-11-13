@@ -10,6 +10,7 @@ import (
 	"github.com/xyths/hs/exchange"
 	"github.com/xyths/hs/exchange/gateio"
 	"github.com/xyths/hs/exchange/huobi"
+	"github.com/xyths/qtr/ta/grid"
 	"github.com/xyths/qtr/ta/natr"
 	"github.com/xyths/qtr/ta/squeeze"
 	"github.com/xyths/qtr/ta/supertrend"
@@ -76,9 +77,9 @@ func (a *Agent) NATR(ctx context.Context, symbols []string, start, end time.Time
 }
 
 // just download to csv, no indicators call
-func (a *Agent) DownloadFrom(ctx context.Context, symbol string, from,to time.Time, period time.Duration, output string) error {
+func (a *Agent) DownloadFrom(ctx context.Context, symbol string, from, to time.Time, period time.Duration, output string) error {
 	a.Sugar.Infof("calculate SuperTrend in details for %s", symbol)
-	candle, err := a.ex.CandleFrom(symbol, "1111",period, from,to)
+	candle, err := a.ex.CandleFrom(symbol, "1111", period, from, to)
 	if err != nil {
 		a.Sugar.Errorf("get candle error: %s", err)
 		return err
@@ -176,6 +177,25 @@ func (a *Agent) Squeeze(ctx context.Context, symbols []string, size int64, month
 	}
 	// write to csv
 	return s.WriteToCsv(ctx, r, output)
+}
+
+func (a *Agent) Grid(ctx context.Context, symbols []string, size int64, output string) error {
+	symbols, err := a.fillSymbols(ctx, symbols)
+	if err != nil {
+		return err
+	}
+	symbols, _ = a.sortByVol24h(symbols)
+	g := grid.Scanner{
+		Sugar: a.Sugar, Ex: a.ex,
+	}
+	r, err := g.Scan(ctx, symbols, size)
+	if err != nil {
+		a.Sugar.Errorf("scan by Grid error: %s", err)
+		return err
+	}
+
+	// write to csv
+	return g.WriteToCsv(ctx, r, output)
 }
 
 func (a *Agent) fillSymbols(ctx context.Context, symbols []string) ([]string, error) {

@@ -4,20 +4,18 @@
 *.dll
 *.so
 *.dylib
-qtr
 qtr.*
 qtr_linux.*
-qcandle
 qcandle.*
-wsq
 wsq.*
 qsnap.*
+qsnap_linux.*
 grid_linux.*
-qsnap*
-squeeze*
+squeeze.*
+squeeze_linux.*
 qst.*
 qst_linux.*
-qresearch*
+qresearch.*
 
 # Test binary, built with `go test -c`
 *.test

@@ -13,7 +13,6 @@ import (
 	"github.com/xyths/hs/exchange/huobi"
 	"github.com/xyths/hs/logger"
 	"github.com/xyths/qtr/executor"
-	"github.com/xyths/qtr/trader/common/const"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.uber.org/zap"
 	"log"
@@ -371,7 +370,7 @@ func (s *SniperTrader) initHuobi() (err error) {
 	if err != nil {
 		return err
 	}
-	s.symbol, err = s.ex.GetSymbol(context.Background(),s.config.Exchange.Symbols[0])
+	s.symbol, err = s.ex.GetSymbol(context.Background(), s.config.Exchange.Symbols[0])
 	if err != nil {
 		return err
 	}
@@ -437,7 +436,7 @@ func (s *SniperTrader) Broadcast(format string, a ...interface{}) {
 }
 
 func (s *SniperTrader) loadState(ctx context.Context) {
-	coll := s.db.Collection(coll.collNameState)
+	coll := s.db.Collection(collNameState)
 	if uniqueId, err := hs.LoadInt64(ctx, coll, "uniqueId"); err != nil {
 		s.Sugar.Fatalf("load UniqueId error: %s", err)
 	} else if uniqueId != 0 {
@@ -465,7 +464,7 @@ func (s *SniperTrader) loadState(ctx context.Context) {
 }
 
 func (s *SniperTrader) clearState(ctx context.Context) {
-	coll := s.db.Collection(coll.collNameState)
+	coll := s.db.Collection(collNameState)
 	if err := hs.DeleteInt64(ctx, coll, "longTimes"); err != nil {
 		s.Sugar.Errorf("delete longTimes error: %s", err)
 	} else {

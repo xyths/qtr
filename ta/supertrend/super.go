@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	indicator "github.com/xyths/go-indicators"
+	"github.com/xyths/hs"
 	"github.com/xyths/hs/exchange"
 	"go.uber.org/zap"
 	"os"
@@ -101,14 +102,18 @@ func (st *SuperTrend) period(symbol string, period time.Duration, size int64) (u
 	if err != nil {
 		return
 	}
-	if candle.Length() <= 9 {
+	return st.Calculate(3, 7, candle), nil
+}
+
+func (st *SuperTrend) Calculate(factor float64, period int, candle hs.Candle) (up bool) {
+	if candle.Length() < period+2 {
 		return
 	}
-	_, trend := indicator.SuperTrend(3, 7, candle.High, candle.Low, candle.Close)
+	_, trend := indicator.SuperTrend(factor, period, candle.High, candle.Low, candle.Close)
 	if len(trend) > 2 {
 		up = trend[len(trend)-2]
 	}
-	return
+	return up
 }
 
 func (st *SuperTrend) WriteToCsv(ctx context.Context, r ScanResult, output string) error {

@@ -224,6 +224,11 @@ var (
 				Name:   "squeeze",
 				Usage:  "Scan by Squeeze indicator",
 			},
+			{
+				Action: gridScan,
+				Name:   "grid",
+				Usage:  "Scan for grid strategy, filter by SuperTrend and Squeeze indicator",
+			},
 		},
 	}
 	historyCommand = &cli.Command{
@@ -548,44 +553,4 @@ func rtmClear(ctx *cli.Context) error {
 	//defer t.Close(ctx.Context)
 	//return t.Clear(ctx.Context)
 	return nil
-}
-
-func superScan(ctx *cli.Context) error {
-	cfgFile := ctx.String(utils.ConfigFlag.Name)
-	cfg := ta.Config{}
-	if err := hs.ParseJsonConfig(cfgFile, &cfg); err != nil {
-		return err
-	}
-	output := ctx.String(utils.OutputCsvFlag.Name)
-	size := ctx.Int64(utils.SizeFlag.Name)
-	monthly := ctx.Bool(utils.ScanMonthlyFlag.Name)
-	weekly := ctx.Bool(utils.ScanWeeklyFlag.Name)
-	daily := ctx.Bool(utils.ScanDailyFlag.Name)
-	h4 := ctx.Bool(utils.Scan4HFlag.Name)
-	h1 := ctx.Bool(utils.ScanHourlyFlag.Name)
-	agent := ta.NewAgent(cfg)
-	if err := agent.Init(); err != nil {
-		return err
-	}
-	return agent.SuperTrend(ctx.Context, ctx.Args().Slice(), size, monthly, weekly, daily, h4, h1, output)
-}
-
-func squeezeScan(ctx *cli.Context) error {
-	cfgFile := ctx.String(utils.ConfigFlag.Name)
-	cfg := ta.Config{}
-	if err := hs.ParseJsonConfig(cfgFile, &cfg); err != nil {
-		return err
-	}
-	output := ctx.String(utils.OutputCsvFlag.Name)
-	size := ctx.Int64(utils.SizeFlag.Name)
-	monthly := ctx.Bool(utils.ScanMonthlyFlag.Name)
-	weekly := ctx.Bool(utils.ScanWeeklyFlag.Name)
-	daily := ctx.Bool(utils.ScanDailyFlag.Name)
-	h4 := ctx.Bool(utils.Scan4HFlag.Name)
-	h1 := ctx.Bool(utils.ScanHourlyFlag.Name)
-	agent := ta.NewAgent(cfg)
-	if err := agent.Init(); err != nil {
-		return err
-	}
-	return agent.Squeeze(ctx.Context, ctx.Args().Slice(), size, monthly, weekly, daily, h4, h1, output)
 }
