@@ -430,13 +430,13 @@ func (r *RestGridTrader) assetRebalancing(moneyNeed, coinNeed, moneyHeld, coinHe
 				moneyNeed, buyTotal, moneyNeed.Add(buyTotal), moneyHeld)
 			direct = 2
 		}
-		if coinDelta.LessThan(r.Symbol.MinTotal) {
-			logger.Sugar.Errorf("buy amount %s less than minAmount(%s), won't sell", coinDelta, r.Symbol.MinTotal)
+		if coinDelta.LessThan(r.Symbol.MinAmount) {
+			logger.Sugar.Errorf("buy amount %s less than minAmount(%s), won't buy", coinDelta, r.Symbol.MinTotal)
 			direct = 0
 			return
 		}
 		if buyTotal.LessThan(r.Symbol.MinTotal) {
-			logger.Sugar.Errorf("buy total %s less than minTotal(%s), won't sell", buyTotal, r.Symbol.MinTotal)
+			logger.Sugar.Errorf("buy total %s less than minTotal(%s), won't buy", buyTotal, r.Symbol.MinTotal)
 			direct = 0
 			return
 		}
