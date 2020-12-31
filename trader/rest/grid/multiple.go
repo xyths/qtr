@@ -178,7 +178,7 @@ func (t *MultipleGridTrader) initExecutor() (err error) {
 			return
 		}
 	case "gate":
-		t.ex = gateio.New(cfg.Key, cfg.Secret, cfg.Host)
+		t.ex = gateio.New(cfg.Key, cfg.Secret, cfg.Host, t.Sugar)
 	}
 	return nil
 }

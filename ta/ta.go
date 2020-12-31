@@ -54,7 +54,7 @@ func (a *Agent) Init() error {
 			return err
 		}
 	case "gate":
-		a.ex = gateio.New(a.config.Exchange.Key, a.config.Exchange.Secret, a.config.Exchange.Host)
+		a.ex = gateio.New(a.config.Exchange.Key, a.config.Exchange.Secret, a.config.Exchange.Host, a.Sugar)
 	default:
 		return errors.New("exchange not supported")
 	}

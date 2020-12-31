@@ -11,6 +11,7 @@ import (
 	"github.com/xyths/hs"
 	"github.com/xyths/hs/broadcast"
 	"github.com/xyths/hs/exchange"
+	"github.com/xyths/hs/exchange/gateio"
 	"github.com/xyths/hs/exchange/huobi"
 	"github.com/xyths/hs/logger"
 	"github.com/xyths/qtr/executor"
@@ -204,11 +205,19 @@ func (s *WsTrader) initEx() error {
 	return nil
 }
 
-func (s *WsTrader) initGate() {
-	//s.ex = gateio.New(s.config.Exchange.Key, s.config.Exchange.Secret, s.config.Exchange.Host)
+func (s *WsTrader) initGate() error {
+	s.ex = gateio.New(s.config.Exchange.Key, s.config.Exchange.Secret, s.config.Exchange.Host, s.Sugar)
+	var err error
+	s.symbol, err = s.ex.GetSymbol(context.Background(), s.config.Exchange.Symbols[0])
+	if err != nil {
+		return err
+	}
+	s.fee, err = s.ex.GetFee(s.Symbol())
+	return err
 }
 
-func (s *WsTrader) initHuobi() (err error) {
+func (s *WsTrader) initHuobi() error {
+	var err error
 	s.ex, err = huobi.New(s.config.Exchange.Label, s.config.Exchange.Key, s.config.Exchange.Secret, s.config.Exchange.Host)
 	if err != nil {
 		return err

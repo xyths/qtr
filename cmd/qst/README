@@ -1,0 +1,3 @@
+# qst
+
+qst是使用RESTful接口的SuperTrend实验，主要用于Gate，目前仍是基于APIv2，后续考虑迁移到APIv4。
