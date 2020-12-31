@@ -107,7 +107,7 @@ func (t *BaseTrader) initEx() error {
 }
 
 func (t *BaseTrader) initGate() error {
-	t.ex = gateio.New(t.config.Exchange.Key, t.config.Exchange.Secret, t.config.Exchange.Host)
+	t.ex = gateio.New(t.config.Exchange.Key, t.config.Exchange.Secret, t.config.Exchange.Host, t.Sugar)
 	symbol, err := t.ex.GetSymbol(context.Background(), t.config.Exchange.Symbols[0])
 	if err != nil {
 		return err
