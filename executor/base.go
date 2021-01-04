@@ -12,6 +12,15 @@ import (
 	"time"
 )
 
+type State int
+
+const (
+	Empty   State = 0
+	Open          = 1
+	Buying        = 3
+	Selling       = 4
+)
+
 type BaseExecutor struct {
 	Name     string
 	Label    string

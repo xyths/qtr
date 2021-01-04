@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 )
-
 type ClientIdManager struct {
 	sep    string
 	lock   sync.RWMutex

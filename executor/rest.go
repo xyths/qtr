@@ -4,10 +4,15 @@ import (
 	"context"
 	"github.com/shopspring/decimal"
 	"github.com/xyths/hs"
+	"time"
 )
 
+// RestExecutor 是使用RESTful接口（主动请求查询订单状态和k线）的 Executor
+// 接受买卖信号，并根据自身状态做出响应
 type RestExecutor struct {
 	BaseExecutor
+	Receiver    chan Signal
+	state       State
 	buyOrderId  uint64
 	sellOrderId uint64
 }
@@ -23,6 +28,81 @@ func (e *RestExecutor) Load(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+// Start listen to signals send by trader, and query exchange at the minimum duration
+func (e *RestExecutor) Start(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case signal := <-e.Receiver:
+			e.Sugar.Debugf("got signal: %v", signal)
+			go e.Process(signal)
+		case <-time.After(time.Second * 20):
+			e.check()
+		}
+	}
+}
+
+func (e *RestExecutor) Process(signal Signal) {
+	// 忽略了传过来的价格和数量
+	switch signal.Direction {
+	case -1: // sell
+		e.short()
+	case 1: // buy
+		e.long()
+	}
+}
+
+func (e *RestExecutor) check() {
+	e.checkOrder()
+}
+
+// 如果订单存在，则检查是否成交，如成交，则改变状态
+func (e *RestExecutor) checkOrder() {
+
+}
+
+// short try to sell
+// 1. check state
+// 2. place order
+// 3. change state if necessary
+func (e *RestExecutor) short() {
+	switch e.state {
+	case Empty:
+		// do nothing
+	case Selling:
+		// do nothing
+	case Open:
+		// sell all coins
+	case Buying:
+		// cancel buy order
+		// sell all coins
+		e.sellAllMarket()
+	}
+}
+
+// long try to buy
+// 1. check state
+// 2. place order
+// 3. change state if necessary
+func (e *RestExecutor) long() {
+	switch e.state {
+	case Open:
+		// do nothing
+	case Buying:
+		// do nothing
+	case Empty:
+		// buy use all of money
+		e.buyAllMarket()
+		e.state = Buying
+	case Selling:
+		// cancel sell order
+		// buy all
+		e.buyAllMarket()
+		e.state = Buying
+	}
 }
 
 func (e *RestExecutor) BuyAllLimit(price float64) error {

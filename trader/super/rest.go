@@ -2,9 +2,11 @@ package super
 
 import (
 	"context"
+	"fmt"
 	"github.com/shopspring/decimal"
 	indicator "github.com/xyths/go-indicators"
 	"github.com/xyths/hs"
+	"github.com/xyths/hs/exchange"
 	"github.com/xyths/qtr/types"
 	"log"
 	"math"
@@ -180,7 +182,7 @@ func (t *RestTrader) onTick(c hs.Candle, dry bool) {
 
 // Long buy maxTotal amount coin at market price
 func (t *RestTrader) Long(price, stop decimal.Decimal) {
-	t.LimitBuyAll(price)
+	t.MarketBuyAll(price)
 	if t.Reinforce > 0 {
 		// place reinforce order
 		p := decimal.NewFromInt(1).Sub(t.fee.ActualMaker.Mul(decimal.NewFromFloat(2 + t.Reinforce)))
@@ -190,7 +192,7 @@ func (t *RestTrader) Long(price, stop decimal.Decimal) {
 	}
 }
 
-func (t *RestTrader) LimitBuyAll(price decimal.Decimal) {
+func (t *RestTrader) MarketBuyAll(price decimal.Decimal) {
 	balance, err := t.ex.SpotAvailableBalance()
 	if err != nil {
 		t.Sugar.Errorf("get available balance error: %s", err)
@@ -205,28 +207,56 @@ func (t *RestTrader) LimitBuyAll(price decimal.Decimal) {
 	if maxTotal.GreaterThan(t.maxTotal) {
 		maxTotal = t.maxTotal
 	}
-	amount := maxTotal.DivRound(price, t.AmountPrecision())
-	total := amount.Mul(price)
-	if amount.LessThan(t.MinAmount()) { //|| total.LessThan(minTotal) or total (%s / %s), total, minTotal
-		t.Sugar.Infof("amount (%s / %s) is too small", amount, t.MinAmount())
-		//full
-		t.SetPosition(1)
-		return
-	}
 	clientId := GetClientOrderId(sep, prefixBuyLimitOrder, t.ShortTimes, t.LongTimes+1, t.GetUniqueId())
-	orderId, err := t.ex.BuyLimit(t.Symbol(), clientId, price, amount)
-	if err != nil {
-		t.Sugar.Errorf("buy error: %s", err)
-		return
-	}
-
-	t.Sugar.Infof("限价买入，订单号: %d / %s, price: %s, amount: %s, total: %s", orderId, clientId, price, amount, total)
-	t.Broadcast("限价买入，订单号: %d / %s, 价格: %s, 数量: %s, 买入总金额: %s", orderId, clientId, price, amount, total)
+	t.smoothBuy(t.symbol, clientId, maxTotal)
 
 	t.SetPosition(1)
 	t.LongTimes++
 	if err := hs.SaveInt64(context.Background(), t.db.Collection(collNameState), "longTimes", t.LongTimes); err != nil {
 		t.Sugar.Infof("save longTimes error: %s", err)
+	}
+}
+
+func (t *RestTrader) smoothBuy(symbol exchange.Symbol, clientId string, total decimal.Decimal) {
+	left := total
+	i := 0
+	for left.IsPositive() {
+		lastPrice, err := t.ex.LastPrice(symbol.Symbol)
+		if err != nil {
+			t.Sugar.Errorf("get last price error: %s", err)
+			continue
+		}
+		price := lastPrice.Round(t.PricePrecision())
+		amount := left.DivRound(price, t.AmountPrecision())
+		orderId, err := t.ex.BuyLimit(t.Symbol(), fmt.Sprintf("%s-%d", clientId, i), price, amount)
+		i++
+		if err != nil {
+			t.Sugar.Errorf("buy error: %s", err)
+			return
+		}
+
+		t.Sugar.Infof("市价买入，订单号: %d / %s, total: %s", orderId, clientId, left)
+		// check order
+		time.Sleep(time.Second * 20)
+		o2, err := t.ex.GetOrderById(orderId, t.Symbol())
+		if o2.FilledAmount.IsPositive() {
+			// 成交或部分成交
+			t.Broadcast("市价买入，订单号: %d / %s\n\t下单价格: %s, 下单数量: %s\n\t成交价格: %s, 成交数量: %s\n\t下单总金额: %s, 成交总金额: %s",
+				orderId, clientId,
+				o2.Price, o2.FilledPrice,
+				o2.Amount, o2.FilledAmount,
+				o2.Price.Mul(o2.Amount), o2.FilledPrice.Mul(o2.FilledAmount),
+			)
+		}
+		if o2.FilledAmount.Equal(o2.Amount) {
+			t.Sugar.Info("buy order full-filled")
+			break
+		}
+		if err := t.ex.CancelOrder(t.Symbol(), orderId); err != nil {
+			t.Sugar.Errorf("cancel order error: %s", err)
+			continue
+		}
+		left = left.Sub(o2.FilledPrice.Mul(o2.FilledAmount))
 	}
 }
 

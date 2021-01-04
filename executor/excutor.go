@@ -14,6 +14,12 @@ import (
 	"time"
 )
 
+// Executor 作为交易员，只接收最简单的买卖命令。
+// 命令包括：
+//    买卖方向、数量、指导价格
+// 交易员自己维护一个状态机，管理空仓、持仓、和满仓的状态转换。
+//    如果是RESTful版本，按最小时间间隔检查订单状态；
+//    如果是Websocket订阅版本，被动等待交易所通知；
 type Executor struct {
 	config   hs.ExchangeConf
 	maxTotal decimal.Decimal
