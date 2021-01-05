@@ -208,7 +208,19 @@ func (t *RestTrader) MarketBuyAll(price decimal.Decimal) {
 		maxTotal = t.maxTotal
 	}
 	clientId := GetClientOrderId(sep, prefixBuyLimitOrder, t.ShortTimes, t.LongTimes+1, t.GetUniqueId())
-	t.smoothBuy(t.symbol, clientId, maxTotal)
+	switch t.config.Exchange.Name {
+	case "gate":
+		t.smoothBuy(t.symbol, clientId, maxTotal)
+	default:
+		total := maxTotal
+		orderId, err := t.ex.BuyMarket(t.symbol, clientId, total)
+		if err != nil {
+			t.Sugar.Errorf("sell error: %s", err)
+			return
+		}
+		t.Sugar.Infof("市价买入，订单号: %d / %s, total: %s", orderId, clientId, total)
+		t.Broadcast("市价买入，订单号: %d / %s, 买入总金额: %s", orderId, clientId, total)
+	}
 
 	t.SetPosition(1)
 	t.LongTimes++
@@ -217,6 +229,8 @@ func (t *RestTrader) MarketBuyAll(price decimal.Decimal) {
 	}
 }
 
+// 专为Gate优化的市价买入策略，因为Gate不支持市价单，所以从Ticker获得的最新价，不一定能成交，尤其是极端行情
+// 解决办法是：下单后等待20s，再次下单（20s才能更新一次Ticker）
 func (t *RestTrader) smoothBuy(symbol exchange.Symbol, clientId string, total decimal.Decimal) {
 	left := total
 	i := 0
@@ -242,7 +256,7 @@ func (t *RestTrader) smoothBuy(symbol exchange.Symbol, clientId string, total de
 		if o2.FilledAmount.IsPositive() {
 			// 成交或部分成交
 			t.Broadcast("市价买入，订单号: %d / %s\n\t下单价格: %s, 下单数量: %s\n\t成交价格: %s, 成交数量: %s\n\t下单总金额: %s, 成交总金额: %s",
-				orderId, clientId,
+				orderId, o2.ClientOrderId,
 				o2.Price, o2.FilledPrice,
 				o2.Amount, o2.FilledAmount,
 				o2.Price.Mul(o2.Amount), o2.FilledPrice.Mul(o2.FilledAmount),
@@ -257,6 +271,51 @@ func (t *RestTrader) smoothBuy(symbol exchange.Symbol, clientId string, total de
 			continue
 		}
 		left = left.Sub(o2.FilledPrice.Mul(o2.FilledAmount))
+	}
+}
+
+// 专为Gate优化的市价买出策略，因为Gate不支持市价单，所以从Ticker获得的最新价，不一定能成交，尤其是极端行情
+// 解决办法是：下单后等待20s，再次下单（20s才能更新一次Ticker）
+func (t *RestTrader) smoothSell(symbol exchange.Symbol, clientId string, amount decimal.Decimal) {
+	left := amount
+	i := 0
+	for left.IsPositive() {
+		lastPrice, err := t.ex.LastPrice(symbol.Symbol)
+		if err != nil {
+			t.Sugar.Errorf("get last price error: %s", err)
+			continue
+		}
+		price := lastPrice.Round(t.PricePrecision())
+		text := fmt.Sprintf("%s-%d", clientId, i)
+		orderId, err := t.ex.SellLimit(t.Symbol(), text, price, left)
+		i++
+		if err != nil {
+			t.Sugar.Errorf("sell error: %s", err)
+			return
+		}
+
+		t.Sugar.Infof("尝试市价清仓，订单号: %d / %s, amount: %s", orderId, text, left)
+		// check order
+		time.Sleep(time.Second * 20)
+		o2, err := t.ex.GetOrderById(orderId, t.Symbol())
+		if o2.FilledAmount.IsPositive() {
+			// 成交或部分成交
+			t.Broadcast("市价清仓成交，订单号: %d / %s\n 下单价格: %s, 下单数量: %s\n 成交价格: %s, 成交数量: %s\n 下单总金额: %s, 成交总金额: %s",
+				orderId, o2.ClientOrderId,
+				o2.Price, o2.FilledPrice,
+				o2.Amount, o2.FilledAmount,
+				o2.Price.Mul(o2.Amount), o2.FilledPrice.Mul(o2.FilledAmount),
+			)
+		}
+		if o2.FilledAmount.Equal(o2.Amount) {
+			t.Sugar.Info("sell order full-filled")
+			break
+		}
+		if err := t.ex.CancelOrder(t.Symbol(), orderId); err != nil {
+			t.Sugar.Errorf("cancel order error: %s", err)
+			continue
+		}
+		left = left.Sub(o2.FilledAmount)
 	}
 }
 
@@ -370,13 +429,18 @@ func (t *RestTrader) MarketSellAll() {
 		return
 	}
 	clientId := GetClientOrderId(sep, prefixSellMarketOrder, t.ShortTimes+1, t.LongTimes, t.GetUniqueId())
-	orderId, err := t.ex.SellMarket(t.symbol, clientId, amount)
-	if err != nil {
-		t.Sugar.Errorf("sell error: %s", err)
-		return
+	switch t.config.Exchange.Name {
+	case "gate":
+		t.smoothSell(t.symbol, clientId, amount)
+	default:
+		orderId, err := t.ex.SellMarket(t.symbol, clientId, amount)
+		if err != nil {
+			t.Sugar.Errorf("sell error: %s", err)
+			return
+		}
+		t.Sugar.Infof("市价清仓，订单号: %d / %s, amount: %s", orderId, clientId, amount)
+		t.Broadcast("市价清仓，订单号: %d / %s, 卖出数量: %s", orderId, clientId, amount)
 	}
-	t.Sugar.Infof("市价清仓，订单号: %d / %s, amount: %s", orderId, clientId, amount)
-	t.Broadcast("市价清仓，订单号: %d / %s, 卖出数量: %s", orderId, clientId, amount)
 
 	t.SetPosition(-1)
 	t.ShortTimes++
