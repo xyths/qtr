@@ -41,18 +41,21 @@ func NewBaseTraderFromConfig(ctx context.Context, cfg Config) (*BaseTrader, erro
 		return nil, err
 	}
 	s := &BaseTrader{
-		config:   cfg,
-		interval: interval,
-		maxTotal: decimal.NewFromFloat(cfg.Strategy.Total / 2),
+		config:    cfg,
+		interval:  interval,
+		Factor:    cfg.Strategy.Factor,
+		Period:    cfg.Strategy.Period,
+		StopLoss:  cfg.Strategy.StopLoss,
+		Reinforce: cfg.Strategy.Reinforce,
+		maxTotal:  decimal.NewFromFloat(cfg.Strategy.Total / 2),
+	}
+	if s.Reinforce == 0 {
+		s.maxTotal = decimal.NewFromFloat(cfg.Strategy.Total)
 	}
 	return s, err
 }
 
 func (t *BaseTrader) Init(ctx context.Context) error {
-	t.Factor = t.config.Strategy.Factor
-	t.Period = t.config.Strategy.Period
-	t.StopLoss = t.config.Strategy.StopLoss
-	t.Reinforce = t.config.Strategy.Reinforce
 	if err := t.initLogger(); err != nil {
 		return err
 	}

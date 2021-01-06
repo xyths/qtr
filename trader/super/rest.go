@@ -102,6 +102,10 @@ func (t *RestTrader) Start(ctx context.Context) {
 	wakeTime := time.Now()
 	if t.interval == time.Hour*24 {
 		wakeTime = time.Date(wakeTime.Year(), wakeTime.Month(), wakeTime.Day(), 0, 0, 0, 0, wakeTime.Location())
+		// gate以8点钟为日线开始
+		if t.config.Exchange.Name == "gate" {
+			wakeTime = wakeTime.Add(time.Hour * 8)
+		}
 	} else {
 		wakeTime = wakeTime.Truncate(t.interval)
 	}
@@ -257,8 +261,8 @@ func (t *RestTrader) smoothBuy(symbol exchange.Symbol, clientId string, total de
 			// 成交或部分成交
 			t.Broadcast("市价买入，订单号: %d / %s\n\t下单价格: %s, 下单数量: %s\n\t成交价格: %s, 成交数量: %s\n\t下单总金额: %s, 成交总金额: %s",
 				orderId, o2.ClientOrderId,
-				o2.Price, o2.FilledPrice,
-				o2.Amount, o2.FilledAmount,
+				o2.Price, o2.Amount,
+				o2.FilledPrice, o2.FilledAmount,
 				o2.Price.Mul(o2.Amount), o2.FilledPrice.Mul(o2.FilledAmount),
 			)
 		}
