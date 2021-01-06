@@ -14,8 +14,7 @@ func init() {
 	app = &cli.App{
 		Name:    filepath.Base(os.Args[0]),
 		Usage:   "snapshot the asset of exchange account",
-		Version: "0.1.4",
-		Action:  snap,
+		Version: "0.3.3",
 	}
 	app.Flags = []cli.Flag{
 		utils.ConfigFlag,

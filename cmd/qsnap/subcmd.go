@@ -14,13 +14,6 @@ var (
 	}
 )
 
-func snap(ctx *cli.Context) error {
-	config := ctx.String(utils.ConfigFlag.Name)
-	snap := snapshot.New(config)
-	snap.Snapshot(ctx.Context)
-	return nil
-}
-
 func snapLog(ctx *cli.Context) error {
 	config := ctx.String(utils.ConfigFlag.Name)
 	snap := snapshot.New(config)

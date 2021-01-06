@@ -1,16 +1,15 @@
 package snapshot
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/google/martian/log"
-	"github.com/shopspring/decimal"
 	"github.com/xyths/hs"
 	"github.com/xyths/hs/exchange"
 	"github.com/xyths/hs/exchange/gateio"
 	"github.com/xyths/hs/exchange/huobi"
 	. "github.com/xyths/hs/logger"
+	"go.uber.org/zap"
 	"os"
 	"strings"
 	"time"
@@ -19,11 +18,13 @@ import (
 type Config struct {
 	Exchanges []hs.ExchangeConf
 	Mongo     hs.MongoConf
+	Log       hs.LogConf
 	Output    string
 }
 
 type Snapshot struct {
 	config Config
+	Sugar  *zap.SugaredLogger
 }
 
 func New(configFilename string) *Snapshot {
@@ -31,66 +32,73 @@ func New(configFilename string) *Snapshot {
 	if err := hs.ParseJsonConfig(configFilename, &cfg); err != nil {
 		Sugar.Fatal(err)
 	}
+	l, err := hs.NewZapLogger(cfg.Log)
+	if err != nil {
+		return nil
+	}
+	l.Sugar().Info("Logger initialized")
 	s := &Snapshot{
 		config: cfg,
+		Sugar:  l.Sugar(),
 	}
 	return s
 }
 
-func (s *Snapshot) Snapshot(ctx context.Context) error {
-	db, err := hs.ConnectMongo(ctx, s.config.Mongo)
-	if err != nil {
-		return err
-	}
-	defer db.Client().Disconnect(ctx)
-	balance := make(map[string]string)
-	for _, e := range s.config.Exchanges {
-		b, err := s.balance(e)
-		if err != nil {
-			log.Errorf("balance error: %s", err)
-			return err
-		}
-		key := fmt.Sprintf("%s-%s", e.Name, e.Label)
-		balance[key] = b.String()
-	}
-	balance["time"] = fmt.Sprintf("%d", time.Now().Unix())
-	Sugar.Info(balance)
-	coll := db.Collection("balance")
-	_, err = coll.InsertOne(ctx, balance)
-	return err
+// balance of currency
+type Currency struct {
+	Exchange string  `json:"exchange"`
+	Account  string  `json:"account"`
+	Currency string  `json:"currency"`
+	Amount   float64 `json:"amount"`
+	Price    float64 `json:"price"`
+	Value    float64 `json:"value"`
+	Time     string  `json:"time"`
 }
 
-func (s *Snapshot) balance(e hs.ExchangeConf) (balance decimal.Decimal, err error) {
+func (s *Snapshot) balance(e hs.ExchangeConf) (currencies []Currency, err error) {
 	var ex exchange.RestAPIExchange
 	switch e.Name {
 	case "huobi":
 		ex, err = huobi.New(e.Label, e.Key, e.Secret, e.Host)
+		if err != nil {
+			return
+		}
 	case "gate":
-		ex = gateio.New(e.Key, e.Secret, e.Host)
+		ex = gateio.New(e.Key, e.Secret, e.Host, s.Sugar)
 	}
 	amounts, err := ex.SpotBalance()
 	if err != nil {
 		return
 	}
-	cash := decimal.Zero
+	now := time.Now().String()
 	for coin, amount := range amounts {
-		//Sugar.Debugf("%s: %s", coin, amount)
+		// ignore
+		if strings.ToLower(coin) == "point" {
+			continue
+		}
+		currency := Currency{
+			Exchange: e.Name,
+			Account:  e.Label,
+			Time:     now,
+			Currency: strings.ToUpper(coin),
+		}
+		currency.Amount, _ = amount.Float64()
 		if strings.ToLower(coin) == "usdt" {
-			cash = cash.Add(amount)
-			continue
+			total, _ := amount.Float64()
+			currency.Value = total
+		} else {
+			symbol := ex.FormatSymbol(coin, "usdt")
+			price, err1 := ex.LastPrice(symbol)
+			if err1 != nil {
+				continue
+			}
+			//Sugar.Debugf("%s price: %s", symbol, price)
+			currency.Price, _ = price.Float64()
+			currency.Value, _ = price.Mul(amount).Float64()
 		}
-		if strings.ToLower(coin) == "point" { // ignore
-			continue
-		}
-		symbol := ex.FormatSymbol(coin, "usdt")
-		price, err1 := ex.LastPrice(symbol)
-		if err1 != nil {
-			return balance, err1
-		}
-		//Sugar.Debugf("%s price: %s", symbol, price)
-		cash = cash.Add(price.Mul(amount))
+		currencies = append(currencies, currency)
 	}
-	return cash, nil
+	return
 }
 
 func (s *Snapshot) Log() error {
@@ -101,33 +109,23 @@ func (s *Snapshot) Log() error {
 	}
 	defer f.Close()
 
-	type Balance struct {
-		Exchange string
-		Account  string
-		Balance  float64
-		Time     string
-	}
-	timeStr := time.Now().String()
-	var balance Balance
 	for _, e := range s.config.Exchanges {
-		b, err := s.balance(e)
+		currencies, err := s.balance(e)
 		if err != nil {
 			log.Errorf("balance error: %s", err)
 			continue
 		}
-		balance.Exchange = e.Name
-		balance.Account = e.Label
-		balance.Balance, _ = b.Float64()
-		balance.Time = timeStr
-		b2, err2 := json.Marshal(balance)
-		if err2 != nil {
-			Sugar.Error(err2)
-			continue
-		}
-		_, err1 := fmt.Fprintf(f, "%s\n", string(b2))
-		if err1 != nil {
-			Sugar.Error(err1)
-			continue
+		for _, c := range currencies {
+			b2, err2 := json.Marshal(c)
+			if err2 != nil {
+				Sugar.Error(err2)
+				continue
+			}
+			_, err1 := fmt.Fprintf(f, "%s\n", string(b2))
+			if err1 != nil {
+				Sugar.Error(err1)
+				continue
+			}
 		}
 	}
 	return nil
