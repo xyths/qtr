@@ -246,6 +246,11 @@ func (t *RestTrader) smoothBuy(symbol exchange.Symbol, clientId string, total de
 		}
 		price := lastPrice.Round(t.PricePrecision())
 		amount := left.DivRound(price, t.AmountPrecision())
+		realTotal := price.Mul(amount)
+		for realTotal.GreaterThan(total) {
+			amount = amount.Add(t.MinAmount().Neg())
+			realTotal = price.Mul(amount)
+		}
 		orderId, err := t.ex.BuyLimit(t.Symbol(), fmt.Sprintf("%s-%d", clientId, i), price, amount)
 		i++
 		if err != nil {
