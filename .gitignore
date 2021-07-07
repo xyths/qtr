@@ -14,7 +14,7 @@ grid_linux.*
 squeeze.*
 squeeze_linux.*
 qst.*
-qst_linux.*
+*_linux.*
 qresearch.*
 
 # Test binary, built with `go test -c`

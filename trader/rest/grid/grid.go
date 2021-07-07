@@ -104,8 +104,8 @@ func (r *RestGridTrader) initGrids(ctx context.Context) {
 	for i := 1; i <= number; i++ {
 		currentPrice = currentPrice.Mul(r.scale).Round(r.Symbol.PricePrecision)
 		amountBuy := preTotal.DivRound(currentPrice, r.Symbol.AmountPrecision)
-		if amountBuy.LessThan(r.Symbol.MinAmount) {
-			log.Fatalf("amount %s less than minAmount(%s)", amountBuy, r.Symbol.MinAmount)
+		if amountBuy.LessThan(r.Symbol.LimitOrderMinAmount) {
+			log.Fatalf("amount %s less than minAmount(%s)", amountBuy, r.Symbol.LimitOrderMinAmount)
 		}
 		realTotal := currentPrice.Mul(amountBuy)
 		if realTotal.LessThan(r.Symbol.MinTotal) {
@@ -403,8 +403,8 @@ func (r *RestGridTrader) assetRebalancing(moneyNeed, coinNeed, moneyHeld, coinHe
 			return
 		}
 
-		if sellAmount.LessThan(r.Symbol.MinAmount) {
-			logger.Sugar.Errorf("sell amount %s less than minAmount(%s), won't sell", sellAmount, r.Symbol.MinAmount)
+		if sellAmount.LessThan(r.Symbol.LimitOrderMinAmount) {
+			logger.Sugar.Errorf("sell amount %s less than minAmount(%s), won't sell", sellAmount, r.Symbol.LimitOrderMinAmount)
 			direct = 0
 			return
 		}
@@ -430,7 +430,7 @@ func (r *RestGridTrader) assetRebalancing(moneyNeed, coinNeed, moneyHeld, coinHe
 				moneyNeed, buyTotal, moneyNeed.Add(buyTotal), moneyHeld)
 			direct = 2
 		}
-		if coinDelta.LessThan(r.Symbol.MinAmount) {
+		if coinDelta.LessThan(r.Symbol.LimitOrderMinAmount) {
 			logger.Sugar.Errorf("buy amount %s less than minAmount(%s), won't buy", coinDelta, r.Symbol.MinTotal)
 			direct = 0
 			return
