@@ -18,7 +18,7 @@ func init() {
 		Name:    filepath.Base(os.Args[0]),
 		Action:  reaper,
 		Usage:   "leeks reaper",
-		Version: "0.1.4",
+		Version: "0.1.10",
 	}
 
 	app.Commands = []*cli.Command{

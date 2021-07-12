@@ -1,10 +1,32 @@
 package reaper
 
 import (
+	"context"
 	"github.com/xyths/hs/exchange"
 	"log"
 	"sync"
 )
+
+// startExecutor start a exchange executor service to place orders.
+func (r *Reaper) startExecutor(ctx context.Context) {
+	r.Sugar.Info("executor service started")
+	var direction exchange.Direction
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case signal, ok := <-r.ch:
+			if !ok {
+				r.Sugar.Info("signal channel closed")
+				return
+			}
+			if signal.Direction != direction {
+				direction = signal.Direction
+				r.Sugar.Debugf("executor got signal: %s, %f, %f%%", direction, signal.Price, signal.Score*100)
+			}
+		}
+	}
+}
 
 func (r *Reaper) subscribeTrade() {
 	r.ex.SubscribeTrade(r.symbol, "reaper", r.handleTradeUpdate)
@@ -17,14 +39,15 @@ func (r *Reaper) unsubscribeTrade() {
 }
 
 func (r *Reaper) handleTradeUpdate(trades []exchange.TradeDetail) {
-	for _, t := range trades {
-		r.Sugar.Debugf("frame:%d,%s,%s", t.Timestamp, t.Price.String(), t.Amount)
-	}
+	//for _, t := range trades {
+	//	r.Sugar.Debugf("frame:%d,%s,%s", t.Timestamp, t.Price.String(), t.Amount)
+	//}
 	// add trades
 	r.beacon.Add(trades)
 	// test signal
 	if signal := r.beacon.Signal(); signal != nil {
 		r.Sugar.Debugf("got signal: %s, %f, %f%%", signal.Direction, signal.Price, signal.Score*100)
+		r.ch <- *signal
 	}
 }
 
@@ -89,14 +112,30 @@ func (b *Beacon) Add(trades []exchange.TradeDetail) {
 	defer b.lock.Unlock()
 
 	for _, t := range trades {
-		b.Timestamps = append(b.Timestamps, t.Timestamp)
 		price, _ := t.Price.Float64()
-		b.Prices = append(b.Prices, price)
 		amount, _ := t.Amount.Float64()
-		b.Amount = append(b.Amount, amount)
+		l := len(b.Timestamps)
+		if len(b.Timestamps) > 0 && b.Timestamps[l-1] == t.Timestamp {
+			if b.Prices[l-1] == price {
+				b.Amount[l-1] += amount
+			} else {
+				total := b.Amount[l-1]*b.Prices[l-1] + amount*price
+				b.Amount[l-1] += amount
+				b.Prices[l-1] = total / b.Amount[l-1] // average price
+			}
+		} else {
+			if l > 0 {
+				log.Printf("frame:%d,%f,%f", b.Timestamps[l-1], b.Prices[l-1], b.Amount[l-1])
+			}
+
+			b.Timestamps = append(b.Timestamps, t.Timestamp)
+			b.Prices = append(b.Prices, price)
+			b.Amount = append(b.Amount, amount)
+		}
+
 	}
 	l := len(b.Timestamps)
-	log.Printf("ticks length: %d", l)
+	//log.Printf("ticks length: %d", l)
 	if l > b.MaxLength {
 		b.Timestamps = b.Timestamps[l-b.MaxLength:]
 		b.Prices = b.Prices[l-b.MaxLength:]

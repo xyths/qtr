@@ -24,6 +24,7 @@ type Reaper struct {
 	ex     *huobi.Client
 	symbol string
 
+	ch     chan Signal
 	beacon Beacon
 }
 
@@ -88,6 +89,8 @@ func (r *Reaper) Close(ctx context.Context) {
 }
 
 func (r *Reaper) Start(ctx context.Context) error {
+	r.ch = make(chan Signal, 10)
+	go r.startExecutor(ctx)
 	r.subscribeTrade()
 
 	r.Sugar.Info("reaper started")
@@ -96,6 +99,7 @@ func (r *Reaper) Start(ctx context.Context) error {
 
 func (r *Reaper) Stop(ctx context.Context) {
 	r.unsubscribeTrade()
+	close(r.ch)
 	r.Sugar.Info("reaper stopped")
 }
 
