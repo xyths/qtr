@@ -103,7 +103,7 @@ func (e *Executor) AmountPrecision() int32 {
 	return e.symbol.AmountPrecision
 }
 func (e *Executor) MinAmount() decimal.Decimal {
-	return e.symbol.MinAmount
+	return e.symbol.LimitOrderMinAmount
 }
 func (e *Executor) MinTotal() decimal.Decimal {
 	return e.symbol.MinTotal

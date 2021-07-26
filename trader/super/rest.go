@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-// RESTful trader
+// RestTrader is RESTful trader
 type RestTrader struct {
 	BaseTrader
 
@@ -133,6 +133,11 @@ func (t *RestTrader) Start(ctx context.Context) {
 func (t *RestTrader) doWork(ctx context.Context) {
 	candle, err := t.ex.CandleBySize(t.Symbol(), t.interval, 2000)
 	if err != nil {
+		t.Sugar.Errorf("get candle error: %s", err)
+		return
+	}
+	if candle.Timestamp == nil {
+		t.Sugar.Errorf("empty candle, cap: %d, len: %d", candle.Capacity, candle.Length())
 		return
 	}
 	t.onTick(candle, false)
@@ -579,37 +584,37 @@ func (t *RestTrader) checkSellStopOrder(ctx context.Context) {
 	//		o.Id, o.ClientOrderId, o.Price, o.Amount, o.Price.Mul(o.Amount), o.Status, o.FilledAmount)
 	//}
 }
-
-func (t *RestTrader) Symbol() string {
-	return t.symbol.Symbol
-}
-func (t *RestTrader) QuoteCurrency() string {
-	return t.symbol.QuoteCurrency
-}
-func (t *RestTrader) BaseCurrency() string {
-	return t.symbol.BaseCurrency
-}
-func (t *RestTrader) PricePrecision() int32 {
-	return t.symbol.PricePrecision
-}
-func (t *RestTrader) AmountPrecision() int32 {
-	return t.symbol.AmountPrecision
-}
-func (t *RestTrader) MinAmount() decimal.Decimal {
-	return t.symbol.MinAmount
-}
-func (t *RestTrader) MinTotal() decimal.Decimal {
-	return t.symbol.MinTotal
-}
-func (t *RestTrader) BaseMakerFee() decimal.Decimal {
-	return t.fee.BaseMaker
-}
-func (t *RestTrader) BaseTakerFee() decimal.Decimal {
-	return t.fee.BaseTaker
-}
-func (t *RestTrader) ActualMakerFee() decimal.Decimal {
-	return t.fee.ActualMaker
-}
-func (t *RestTrader) ActualTakerFee() decimal.Decimal {
-	return t.fee.ActualTaker
-}
+//
+//func (t *RestTrader) Symbol() string {
+//	return t.symbol.Symbol
+//}
+//func (t *RestTrader) QuoteCurrency() string {
+//	return t.symbol.QuoteCurrency
+//}
+//func (t *RestTrader) BaseCurrency() string {
+//	return t.symbol.BaseCurrency
+//}
+//func (t *RestTrader) PricePrecision() int32 {
+//	return t.symbol.PricePrecision
+//}
+//func (t *RestTrader) AmountPrecision() int32 {
+//	return t.symbol.AmountPrecision
+//}
+//func (t *RestTrader) MinAmount() decimal.Decimal {
+//	return t.symbol.LimitOrderMinAmount
+//}
+//func (t *RestTrader) MinTotal() decimal.Decimal {
+//	return t.symbol.MinTotal
+//}
+//func (t *RestTrader) BaseMakerFee() decimal.Decimal {
+//	return t.fee.BaseMaker
+//}
+//func (t *RestTrader) BaseTakerFee() decimal.Decimal {
+//	return t.fee.BaseTaker
+//}
+//func (t *RestTrader) ActualMakerFee() decimal.Decimal {
+//	return t.fee.ActualMaker
+//}
+//func (t *RestTrader) ActualTakerFee() decimal.Decimal {
+//	return t.fee.ActualTaker
+//}

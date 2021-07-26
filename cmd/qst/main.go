@@ -18,7 +18,7 @@ func init() {
 		Name:    filepath.Base(os.Args[0]),
 		Action:  superTrend,
 		Usage:   "the SuperTrend trading robot, use restful api",
-		Version: "0.3.3",
+		Version: "0.3.4",
 	}
 
 	app.Commands = []*cli.Command{

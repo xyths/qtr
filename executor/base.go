@@ -74,7 +74,7 @@ func (e *BaseExecutor) AmountPrecision() int32 {
 	return e.symbol.AmountPrecision
 }
 func (e *BaseExecutor) MinAmount() decimal.Decimal {
-	return e.symbol.MinAmount
+	return e.symbol.LimitOrderMinAmount
 }
 func (e *BaseExecutor) MinTotal() decimal.Decimal {
 	return e.symbol.MinTotal

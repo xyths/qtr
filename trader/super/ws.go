@@ -260,7 +260,7 @@ func (s *WsTrader) AmountPrecision() int32 {
 	return s.symbol.AmountPrecision
 }
 func (s *WsTrader) MinAmount() decimal.Decimal {
-	return s.symbol.MinAmount
+	return s.symbol.LimitOrderMinAmount
 }
 func (s *WsTrader) MinTotal() decimal.Decimal {
 	return s.symbol.MinTotal
@@ -339,10 +339,10 @@ func (s *WsTrader) sell(symbol exchange.Symbol) {
 	// sell all balance
 	amount := balance[symbol.BaseCurrency].Round(symbol.AmountPrecision)
 	if amount.GreaterThan(balance[symbol.BaseCurrency]) {
-		amount = amount.Sub(symbol.MinAmount)
+		amount = amount.Sub(symbol.LimitOrderMinAmount)
 	}
 	//logger.Sugar.Debugf("try to sell %s, balance: %v, amount: %s, price: %s", symbol, balance, amount, price)
-	if amount.LessThan(symbol.MinAmount) {
+	if amount.LessThan(symbol.LimitOrderMinAmount) {
 		s.Sugar.Infof("amount too small: %s", amount)
 		s.SetPosition(-1)
 		return

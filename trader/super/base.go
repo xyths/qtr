@@ -171,7 +171,7 @@ func (t *BaseTrader) AmountPrecision() int32 {
 	return t.symbol.AmountPrecision
 }
 func (t *BaseTrader) MinAmount() decimal.Decimal {
-	return t.symbol.MinAmount
+	return t.symbol.LimitOrderMinAmount
 }
 func (t *BaseTrader) MinTotal() decimal.Decimal {
 	return t.symbol.MinTotal
